@@ -8,6 +8,7 @@ This corresponds to the earlier secitons of parameter_func_8e2.ipynb notebook
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 import matplotlib as mpl
 from codes.funcs import *  # import everything in functions
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -441,6 +442,7 @@ def plot_params_all_file_s(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data
 """
 
 def plot_params_all_file_save(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e2_new.pkl',
+                              T_cold = 800, T_hot = 4e6,
                               log_ylimu = 9, ms = 30, plot_ana = False, show_text = True,
                               cm_cold = None, cm_warm = None, verbose = False):
     from matplotlib.gridspec import GridSpec
@@ -487,7 +489,6 @@ def plot_params_all_file_save(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_tu
     """Plot the analytic line"""
     if plot_ana:
         ana_x = np.linspace(0, 1.2, 100)
-        T_hot = 4e6
         import sys
         sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/cooling_scripts'))
         import cooling_fn as cf
@@ -503,10 +504,10 @@ def plot_params_all_file_save(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_tu
         """warm analytical line 1"""
         if plot_ana[0]:
             # temperatures
-            T_cold = rp['T_cloud']
+            T_cold = T_cold
             T_peak = 8.57e+03
             T_warm = 8e3
-            T_hot = rp['T_hot']
+            T_hot = T_hot
             omega = T_cold / T_tcoolmin
             
             # timescale @ temperature of interest: where t_cool peaks, aka T_cold for 8000K runs
@@ -523,10 +524,10 @@ def plot_params_all_file_save(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_tu
         """cold analytical line"""
         if plot_ana[1]:
             # temperatures
-            T_cold = rp['T_cloud']
+            T_cold = T_cold
             T_peak = 8.57e+03
             T_warm = 8e3
-            T_hot = rp['T_hot']
+            T_hot = T_hot
             omega = T_cold / T_tcoolmin
             
             # timescale @ temperature of interest: where t_cool peaks, aka T_cold for 8000K runs
@@ -542,10 +543,10 @@ def plot_params_all_file_save(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_tu
         """warm analytical line 2"""
         if plot_ana[2]:
             # temperatures
-            T_cold = rp['T_cloud']
+            T_cold = T_cold
             T_peak = 8.57e+03
             T_warm = 8e3
-            T_hot = rp['T_hot']
+            T_hot = T_hot
             omega = T_cold / T_tcoolmin
 
             # timescale of interest: growth time for the warm & cold gas

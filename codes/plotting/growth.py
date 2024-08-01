@@ -12,6 +12,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from codes.funcs import *  # import everything in functions
+from codes.timescales import *
 mpl.rcParams.update(mpl.rcParamsDefault)
 from codes.jason import plotting_def, plot_prettier
 plotting_def()
@@ -20,6 +21,94 @@ plotting_def()
 """
 Evolution
 """
+
+def plot_evol_stack(trial = '240613_0.1_10', return_cropped = True):
+    """
+    Plot the evolution of different phases of gas in the run
+    Make a stacked plot
+    """
+    # grab the rp
+    with open(f'{datapath}/params.pickle', 'rb') as handle:
+        rp = pickle.load(handle)
+    # grab the hst file data
+    datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+    # try, for different file structures
+    try:
+        fname = f'{datapath}/turb/Turb.hst'
+        with open(fname, 'r') as file: keys_raw = file.readlines()[1]
+        keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
+    except:
+        fname = f'{datapath}/cloud/Turb.hst'
+        with open(fname, 'r') as file: keys_raw = file.readlines()[1]
+        keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
+    fname = f'{datapath}/cloud/Turb.hst'
+    data = np.loadtxt(fname).T
+    dataf = {keys[i]: data[i] for i in range(len(keys))}
+
+    # mass fractions
+    cg_st_epoch = 0
+    cold_frac_all = dataf['cold_gas'] / dataf['cold_gas'][cg_st_epoch]  # cold gas fraction
+    warm_frac_all = dataf['warm_gas'] / dataf['cold_gas'][cg_st_epoch]  # warm gas fraction
+
+    """Crop the mass at the stop time"""
+    if return_cropped:
+        stop_time, stop_ind = get_stop_time(trial=trial, rp=rp, pfloor=rp['pfloor'], T_cold=rp['T_cold'], hst_data=dataf)
+        # mass fractions, cropped to where pressure does not hit pfloor
+    else:
+        stop_time = dataf['time'][-1]  # the last time in hst
+        stop_ind = len(cold_frac_all)  # the last hst
+    cold_frac_cropped = cold_frac_all[:stop_ind]
+    warm_frac_cropped = warm_frac_all[:stop_ind]
+    stop_time_cc = stop_time / rp['t_cc']
+    
+    # hot gas mass from total mass
+    tot_mass = np.sum(get_datamd(fname=f'{datapath}/cloud/Turb.out2.00001.athdf', key='rho', verbose=False)) * ((rp['box_size'] / rp['grid_dim']) ** 3)
+    cg_mass = dataf['cold_gas']
+    wg_mass = dataf['warm_gas']
+
+    # crop the mass
+    time_cropped = dataf['time'][:stop_ind]
+    wg_mass_cropped = wg_mass[:stop_ind]
+    cg_mass_cropped = cg_mass[:stop_ind]
+    hg_mass_cropped = tot_mass - cg_mass_cropped - wg_mass_cropped
+
+    # stop when the hot gas mass reach 10%
+    if np.any((hg_mass_cropped / tot_mass) < 0.2):  # if the hot gas disappeears
+        print('Cropped for hot mass')
+        hot_fill_ind = np.argmin(np.abs(hg_mass_cropped / tot_mass - 0.05))
+    else:
+        hot_fill_ind = -1
+    stop_time_cc = time_cropped[hot_fill_ind] / rp['t_cc']
+
+    """Make the plot"""
+    fig, ax1 = plt.subplots(figsize=(5,3))
+    # plot a stack plot
+    ax1.stackplot(time_cropped[:hot_fill_ind] / rp['dt_hdf5'],  # time
+                    wg_mass_cropped[:hot_fill_ind] / tot_mass,  # c, w, and h
+                    cg_mass_cropped[:hot_fill_ind] / tot_mass,
+                    hg_mass_cropped[:hot_fill_ind] / tot_mass,
+                    labels=['warm', 'cold', 'hot'],
+                    colors=['orange', 'blue', 'red'])
+    # ax1.set_xlim(0, 2.5 * rp['t_cc'] / rp['dt_hdf5'])
+    ax1.set_ylim(0, 1)
+    ax1.set_ylabel('Gas mass [ini cold mass]')
+    ax1.set_xlabel('Time [epochs]')
+    
+    # alternative t_cc axis
+    ax2 = ax1.twiny()
+    ax2.set_xlim(ax1.get_xlim())
+    t_cc_ticks = np.linspace(0, ax1.get_xlim()[1], 5)
+    t_cc_labels = (t_cc_ticks * rp['dt_hdf5']) / rp['t_cc']
+    ax2.set_xticks(t_cc_ticks)
+    ax2.set_xticklabels(f'{x:.2f}' for x in t_cc_labels)
+    ax2.set_xlabel(r"Time [$t_{\rm cc}$]")
+    
+    # ax1.legend()
+    plt.show()
+        
+    return np.log10(cg_mass_cropped[:hot_fill_ind] / cg_mass_cropped[cg_st_epoch]), np.log10(wg_mass_cropped[:hot_fill_ind] / cg_mass_cropped[cg_st_epoch]), stop_time_cc
+
+
 
 def plot_evol_both_trial(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e2_new.csv', trial = None):
     """
@@ -285,4 +374,105 @@ def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
     cbar.set_ticklabels([0, 2, 4, 6, 8])
     cbar.ax.set_ylabel(r'$\log_{10} \frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=90, labelpad=10)
     ax.set_title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: ${rp['grid_dim']}^3$')
+    plt.show()
+
+
+
+def plot_evol_all_ratio(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv', mach = 0.3, cold_cloud_ratio = 2, plot_wg = True):
+    """
+    Plots evolution of only COLD
+    Plots ALL runs for a single Mach number
+    Checks that all 
+
+    -----
+    mach: only plot the points for a certain mach number
+    cold_cloud_ratio: the ratio between cloud temperature and cold gas temperature criteria
+        Choose within cold_cloud_ratio_list = [2, 3, 5, 10]
+    """
+    from matplotlib.collections import LineCollection
+    import pandas as pd
+    import pickle
+    df = pd.read_csv(csvpath, comment='#')
+    df['yval'] = df["r_cl"] / df["l_shat"]
+    df.sort_values(by='yval', inplace=True)
+    xys, cs = [], []
+    fig, ax1 = plt.subplots(figsize=(5,3))
+    fig, ax2 = plt.subplots(figsize=(5,3))
+    cm = plt.colormaps['BrBG_r']  # colormap for the gas fractions
+
+    x_lims = []
+    for _, row in df.iterrows():
+        if row['x_mach'] != mach:
+            continue
+        datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{row['trial']}'
+        
+        """Load history and temperatures"""
+        with open(f'{datapath}/cloud/time_temperature', 'rb') as handle:
+            time_athdf, temperature_athdf, mass_athdf = pickle.load(handle)
+    
+        """Load run parameters"""
+        with open(f'{datapath}/params.pickle', 'rb') as handle:
+            rp = pickle.load(handle)
+
+        """Gas masses"""
+        # cold gas mass
+        T_cold = rp['T_cloud'] * cold_cloud_ratio
+        cg = []  # cold gas mass array
+        # warm gas mass
+        T_warm = rp['T_warm']
+        wg = []
+        
+        for temp_arr, mass_arr in zip(temperature_athdf, mass_athdf):
+            cg_epoch = np.sum(mass_arr[temp_arr <= T_cold])
+            cg.append(cg_epoch)  # append the cold gas mass for one time save
+            if plot_wg: wg.append(np.sum(mass_arr[np.logical_and(temp_arr > T_cold, temp_arr <= T_warm)]))
+
+            # check for 1/3 box size
+            if cg_epoch > np.sum(mass_arr) / 3:
+                break
+                
+        cg = np.array(cg); wg = np.array(wg)
+        cg_st_epoch = (cg != 0).argmax()
+        # calculate mass fractional manually
+        log_mass_frac = np.log10(cg[-1] / cg[cg_st_epoch])
+
+        # mass evolution
+        x = time_athdf / rp['t_eddy']  # in units of t_eddy
+        y_cg = cg / cg[cg_st_epoch]
+        y_wg = wg / cg[cg_st_epoch]
+        color = cm(plt.Normalize(0, 3)(np.log10(row["yval"])))
+
+        # limit to 1/3 box mass
+        x = x[:len(y_cg)]
+        x_lims.append(np.max(x))
+        ax1.plot(x, y_cg, lw=1, ls='-', color=color, alpha=0.5, label=fr'$R/l_{{\rm shatter}} = {row["yval"]:.0f}$')
+        if plot_wg: ax2.plot(x, y_wg, lw=1, ls='-', color=color, alpha=0.5, label=fr'$R/l_{{\rm shatter}} = {row["yval"]:.0f}$')
+    
+    # y axis
+    ax1.set_ylim(1/3, 3)
+    ax1.set_yscale('log')
+    ax1.set_ylabel(r'$M_{\rm cold} / M_{\rm cold, ini}$')
+    
+    # x axis
+    # plot to 1/3 of the box mass, whichever trial has the minimum
+    ax1.set_xlim(0, np.min(x_lims))
+    ax1.set_xlabel(r"Time $t / t_{\rm eddy}$")
+    
+    ax1.text(0.5, 2e0, fr'$T_{{\rm cold}} = {T_cold:.0f}$', ha='center')
+    
+    ax1.legend(loc='lower right', bbox_to_anchor=(1.8,0.1), fontsize=10, alignment='center')
+    sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 3))
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=ax1)
+    cbar.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', rotation=90, labelpad=10)
+    plt.title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: $128^3$')
+
+    if plot_wg:
+        ax2.set_ylim(1e-4, 1)
+        ax2.set_yscale('log')
+        ax2.set_ylabel(r'$M_{\rm warm} / M_{\rm cold, ini}$')
+        ax2.set_xlim(0, np.min(x_lims))
+        ax2.set_xlabel(r"Time $t / t_{\rm eddy}$")
+        ax2.legend(loc='lower right', bbox_to_anchor=(1.3,0.1), fontsize=10, alignment='center')
+
     plt.show()
