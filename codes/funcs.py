@@ -229,6 +229,14 @@ import h5py
 
 trial = '240613_0.1_10'  # rp.trial
 datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+
+def get_rp(trial = trial):
+    datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+    with open(f'{datapath}/params.pickle', 'rb') as handle:
+        rp = pickle.load(handle)
+    return rp
+
+
 def get_datamd(fname=f'{datapath}/cloud/Turb.out2.00101.athdf',
                key='rho', verbose=False):
     """

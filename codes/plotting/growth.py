@@ -28,8 +28,7 @@ def plot_evol_stack(trial = '240613_0.1_10', return_cropped = True):
     Make a stacked plot
     """
     # grab the rp
-    with open(f'{datapath}/params.pickle', 'rb') as handle:
-        rp = pickle.load(handle)
+    rp = get_rp(trial)
     # grab the hst file data
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
     # try, for different file structures

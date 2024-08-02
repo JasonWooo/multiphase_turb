@@ -10,6 +10,197 @@ from codes.jason import plotting_def, plot_prettier
 plotting_def()
 
 """
+Plot cooling function, rates, and timescales
+"""
+
+def plot_cooling(trial = '', shade = True, plot_which = [1, 1, 1]):
+    """plots the cooling function, rate, and timescale from a trial
+    plot_which = [bool, bool, bool]
+        functions, rates, timescales
+    """
+    # retrieves run params
+    rp = get_rp(trial=trial)
+
+    # Import the cooling function from Hitesh's scripts
+    import sys
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/cooling_scripts'))
+    import cooling_fn as cf
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/helper_scripts'))
+    import v_turb as vt
+
+    # temperature range
+    T_arr = np.logspace(np.log10(rp['T_floor']),
+                        np.log10(rp['T_ceil']), 100)  # in kelvin
+    rho_arr = rp['rho_hot'] * rp['T_hot'] / T_arr
+    
+    """
+    Cooling & Heating functions
+    """
+    Gamma_n_arr = 1e-26 / rho_arr
+    Lambda_arr = np.vectorize(cf.Lam_fn_powerlaw)(T_arr, Zsol=1.0, Lambda_fac=1.0)
+    
+    """
+    Cooling & Heating rates
+    """
+    heating_rate = 1e-26 * rho_arr
+    cooling_rate = Lambda_arr * rho_arr**2
+    
+    """
+    Timescale
+    """
+    tcool_arr = np.vectorize(cf.tcool_calc)(
+        rho_arr, T_arr, Zsol=1.0, Lambda_fac=1.0, fit_type="max"
+    )
+
+    """Temperatures"""
+    # the two limits
+    T_cold = rp['T_cloud']  # set cold temperature to that of cloud
+    T_hot = rp['T_hot']
+    T_mix = np.sqrt(T_cold * T_hot)
+
+    def plot_tvlines(shade=False):
+        if shade:
+            y1, y2 = plt.ylim()
+            plt.fill_between(x=[T_cold, 2 * T_cold], y1=y1, y2=y2, linestyle="--", color="slateblue", alpha=0.2)  # cold
+            plt.fill_between(x=[2 * T_cold, T_mix], y1=y1, y2=y2, linestyle="--", color="green", alpha=0.2)  # warm
+            plt.fill_between(x=[T_mix, rp['T_ceil']], y1=y1, y2=y2, linestyle="--", color="orangered", alpha=0.2)  # hot
+        else:
+            # only plot the definitions for cold, warm/mix, and hot
+            plt.axvline(x=T_cold, lw=1, linestyle="--", color="slateblue", alpha=0.2)
+            plt.axvline(x=T_mix, lw=1, linestyle="--", color="green", alpha=0.2)
+            plt.axvline(x=T_hot, lw=1, linestyle="--", color="orangered", alpha=0.2)
+    
+    """Plot the [functions, rates, timescales]"""
+    if plot_which[0]:
+        """Cooling function"""
+        plt.figure(figsize=(4, 2))
+        plt.plot(T_arr, Lambda_arr, label=r"$\Lambda(T)$")
+        
+        plt.ylabel(r"$\Lambda(T)$  $[10^{-23}  \mathrm{ergs ~ cm}^3/\mathrm{s}]$", fontsize=12)
+        plt.xlabel(r"$T$(K)", fontsize=12)
+        
+        plt.yscale("log")
+        plt.xscale("log")
+        
+        plot_tvlines(shade=shade)
+        plt.legend()
+        plt.show()
+
+    if plot_which[1]:
+        """Cooling rate"""
+        plt.figure(figsize=(4, 2))
+        plt.plot(T_arr, cooling_rate - heating_rate, color='green', label=r"$n^2\Lambda(T) - n\Gamma(T) $")
+        plt.plot(T_arr, cooling_rate, color='blue', label=r"$n^2\Lambda(T)$")
+        plt.plot(T_arr, heating_rate, color='red', label=r"$n\Gamma(T)$")
+        
+        plt.ylabel(r"Cooling/Heating rate", fontsize=12)
+        plt.xlabel(r"$T$(K)", fontsize=12)
+        
+        # plt.yscale("log")
+        plt.xscale("log")
+        plot_tvlines(shade=shade)
+        plt.legend()
+        plt.show()
+
+    if plot_which[2]:
+        """Cooling timescale"""
+        plt.figure(figsize=(4, 2))
+        plt.plot(T_arr, tcool_arr, label=r"$\Lambda(T)$")
+        plt.ylabel(r"$t_{\rm cool} [u]$", fontsize=12)
+        plt.xlabel(r"$T$(K)", fontsize=12)
+        plt.yscale("log")
+        plt.xscale("log")
+        plot_tvlines(shade=shade)
+        plt.legend()
+        plt.show()
+
+
+
+def plot_cooling_panel(trial = '', shade = True, fs = 12):
+    """plots the cooling function and timescale from a trial
+    Everything goes into the same panel
+    """
+    # retrieves run params
+    rp = get_rp(trial=trial)
+
+    # Import the cooling function from Hitesh's scripts
+    import sys
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/cooling_scripts'))
+    import cooling_fn as cf
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/helper_scripts'))
+    import v_turb as vt
+
+    # temperature range
+    T_arr = np.logspace(np.log10(rp['T_floor']),
+                        np.log10(rp['T_ceil']), 100)  # in kelvin
+    rho_arr = rp['rho_hot'] * rp['T_hot'] / T_arr
+    
+    """
+    Cooling & Heating functions
+    """
+    Gamma_n_arr = 1e-26 / rho_arr
+    Lambda_arr = np.vectorize(cf.Lam_fn_powerlaw)(T_arr, Zsol=1.0, Lambda_fac=1.0)
+    
+    """
+    Cooling & Heating rates
+    """
+    heating_rate = 1e-26 * rho_arr
+    cooling_rate = Lambda_arr * rho_arr**2
+    
+    """
+    Timescale
+    """
+    tcool_arr = np.vectorize(cf.tcool_calc)(
+        rho_arr, T_arr, Zsol=1.0, Lambda_fac=1.0, fit_type="max"
+    )
+
+    """Temperatures"""
+    # the two limits
+    T_cold = rp['T_cloud']  # set cold temperature to that of cloud
+    T_hot = rp['T_hot']
+    T_mix = np.sqrt(T_cold * T_hot)
+
+    # make the plot
+    fig, ax1 = plt.subplots(figsize=(4, 3))
+
+    def plot_tvlines(ax, shade=False):
+        if shade:
+            y1, y2 = ax.get_ylim()
+            ax.fill_between(x=[T_cold, 2 * T_cold], y1=y1, y2=y2, linestyle="--", color="slateblue", alpha=0.2)  # cold
+            ax.fill_between(x=[2 * T_cold, T_mix], y1=y1, y2=y2, linestyle="--", color="green", alpha=0.2)  # warm
+            ax.fill_between(x=[T_mix, rp['T_ceil']], y1=y1, y2=y2, linestyle="--", color="orangered", alpha=0.2)  # hot
+        else:
+            # only plot the definitions for cold, warm/mix, and hot
+            ax.axvline(x=T_cold, lw=1, linestyle="--", color="slateblue", alpha=0.2)
+            ax.axvline(x=T_mix, lw=1, linestyle="--", color="green", alpha=0.2)
+            ax.axvline(x=T_hot, lw=1, linestyle="--", color="orangered", alpha=0.2)
+    
+    """Plot the [functions and timescales]"""
+
+    # Cooling function
+    ax1.plot(T_arr, Lambda_arr, lw=1, ls='-', color='k', alpha=1, label=r"$\Lambda(T)$")
+    
+    ax1.set_ylabel(r"$\Lambda(T)$  $[\mathrm{ergs ~ cm}^3/\mathrm{s}]$", fontsize=fs)
+    ax1.set_xlabel(r"$T$(K)", fontsize=fs)
+    ax1.set_yscale("log")
+    ax1.set_xscale("log")
+    ax1.legend(loc='lower left', bbox_to_anchor=(0.57, 0.1), fontsize=fs, alignment='left')
+    
+    # Cooling timescale
+    ax2 = ax1.twinx()
+    ax2.plot(T_arr, tcool_arr, lw=1, ls='--', color='k', alpha=1, label=r"$t_{\rm cool}$")
+
+    ax2.set_ylabel(r"$t_{\rm cool}\ [{\rm Myr}]$", fontsize=fs)
+    ax2.set_yscale("log")
+    ax2.set_xscale("log")
+    ax2.set_xlim(rp['T_floor'], rp['T_ceil'])
+    ax2.set_ylim(tcool_arr.min(), tcool_arr.max())
+    ax2.legend(loc='lower left', bbox_to_anchor=(0.57, 0.2), fontsize=fs, alignment='left')
+
+    # plot_tvlines(ax=ax2, shade=shade)
+    plt.show()
+
+"""
 Functions to load bulk quantities in a run
 """
 
@@ -162,8 +353,7 @@ def load_lshat(rp = None, verbose = False):
 def add_point(trial = '240613_0.1_10', verbose = True):
     # load function
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
-    with open(f'{datapath}/params.pickle', 'rb') as handle:
-        rp = pickle.load(handle)
+    rp = get_rp(trial)
     if verbose: print(rp)
     l_shatter_min, t_cool_mix, t_cool_min, [t_cool_func, T_tcoolmin, T_mix] = load_lshat(rp = rp, verbose=verbose)
     vel_frac = rp['cloud_radius'] / l_shatter_min
@@ -526,8 +716,7 @@ Pressure floor
 def plot_pressure_floor(trial='240708_0.6_1600000', pfloor=0.0005, file_ind=-1):
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
     # load properties
-    with open(f'{datapath}/params.pickle', 'rb') as handle:
-        rp = pickle.load(handle)
+    rp = get_rp(trial)
     try:
         pfloor = rp['pfloor']
     except:
@@ -568,8 +757,7 @@ Calculate the timescales
 
 def print_timescales(trial):
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
-    with open(f'{datapath}/params.pickle', 'rb') as handle:
-        rp = pickle.load(handle)
+    rp = get_rp(trial)
     rp, x, y, t_cool_mix, t_cool_min, [t_cool_func, T_tcoolmin, T_mix] = add_point(trial=trial, verbose=False)
         
     # calculate t_cc of warm/cold gas

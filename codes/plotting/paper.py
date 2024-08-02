@@ -19,6 +19,96 @@ from codes.jason import plotting_def, plot_prettier
 plotting_def()
 
 
+"""
+Figure 1
+----------------------------------------
+Cooling function and cooling timescales
+Shown in a single panel
+"""
+
+def cooling_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/cooling_8e2.pdf', trial = '', shade = True, fs = 12):
+    # retrieves run params
+    rp = get_rp(trial=trial)
+
+    # Import the cooling function from Hitesh's scripts
+    import sys
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/cooling_scripts'))
+    import cooling_fn as cf
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/helper_scripts'))
+    import v_turb as vt
+
+    # temperature range
+    T_arr = np.logspace(np.log10(rp['T_floor']),
+                        np.log10(rp['T_ceil']), 100)  # in kelvin
+    rho_arr = rp['rho_hot'] * rp['T_hot'] / T_arr
+    
+    """
+    Cooling & Heating functions
+    """
+    Gamma_n_arr = 1e-26 / rho_arr
+    Lambda_arr = np.vectorize(cf.Lam_fn_powerlaw)(T_arr, Zsol=1.0, Lambda_fac=1.0)
+    
+    """
+    Cooling & Heating rates
+    """
+    heating_rate = 1e-26 * rho_arr
+    cooling_rate = Lambda_arr * rho_arr**2
+    
+    """
+    Timescale
+    """
+    tcool_arr = np.vectorize(cf.tcool_calc)(
+        rho_arr, T_arr, Zsol=1.0, Lambda_fac=1.0, fit_type="max"
+    )
+
+    """Temperatures"""
+    # the two limits
+    T_cold = rp['T_cloud']  # set cold temperature to that of cloud
+    T_hot = rp['T_hot']
+    T_mix = np.sqrt(T_cold * T_hot)
+
+    # make the plot
+    fig, ax1 = plt.subplots(dpi=200, figsize=(4, 3))
+
+    def plot_tvlines(ax, shade=False):
+        if shade:
+            y1, y2 = ax.get_ylim()
+            ax.fill_between(x=[T_cold, 2 * T_cold], y1=y1, y2=y2, linestyle="--", color="slateblue", alpha=0.2)  # cold
+            ax.fill_between(x=[2 * T_cold, T_mix], y1=y1, y2=y2, linestyle="--", color="green", alpha=0.2)  # warm
+            ax.fill_between(x=[T_mix, rp['T_ceil']], y1=y1, y2=y2, linestyle="--", color="orangered", alpha=0.2)  # hot
+        else:
+            # only plot the definitions for cold, warm/mix, and hot
+            ax.axvline(x=T_cold, lw=1, linestyle="--", color="slateblue", alpha=0.2)
+            ax.axvline(x=T_mix, lw=1, linestyle="--", color="green", alpha=0.2)
+            ax.axvline(x=T_hot, lw=1, linestyle="--", color="orangered", alpha=0.2)
+    
+    """Plot the [functions and timescales]"""
+
+    # Cooling function
+    ax1.plot(T_arr, Lambda_arr, lw=1, ls='-', color='k', label=r"$\Lambda(T)$")
+    
+    ax1.set_ylabel(r"$\Lambda(T)$  $[\mathrm{ergs ~ cm}^3/\mathrm{s}]$", fontsize=fs)
+    ax1.set_xlabel(r"$T$(K)", fontsize=fs)
+    ax1.set_yscale("log")
+    ax1.set_xscale("log")
+    ax1.legend(loc='lower left', bbox_to_anchor=(0.57, 0.1), fontsize=fs, alignment='left')
+    
+    # Cooling timescale
+    ax2 = ax1.twinx()
+    ax2.plot(T_arr, tcool_arr, lw=1, ls='--', color='k', label=r"$t_{\rm cool}$")
+
+    ax2.set_ylabel(r"$t_{\rm cool}\ [{\rm Myr}]$", fontsize=fs)
+    ax2.set_yscale("log")
+    ax2.set_xscale("log")
+    ax2.set_xlim(rp['T_floor'], rp['T_ceil'])
+    ax2.set_ylim(tcool_arr.min(), tcool_arr.max())
+    ax2.legend(loc='lower left', bbox_to_anchor=(0.57, 0.2), fontsize=fs, alignment='left')
+
+    plot_tvlines(ax=ax2, shade=shade)
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
+    plt.show()
+
+
 
 """
 Figure 2
@@ -27,15 +117,16 @@ Figure 2
 Shown in 1 panel with the analytical fit
 """
 
-def params_8e3(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv',
-               cm = None, cg_st_epoch = 0,
+def params_8e3(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e3.pdf',
+               csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv',
+               cm = None, cg_st_epoch = 0, shade = False,
                verbose = False):
     # load the trials
     df = pd.read_csv(csvpath, comment='#')
     trials = df['trial'].to_numpy()
 
     # initialize the plot
-    fig, ax = plt.subplots(figsize=(4,4))
+    fig, ax = plt.subplots(dpi=200, figsize=(4,4))
     
     for trial in trials:
         rp, x, y, t_cool_mix, t_cool_min, t_cool_cold = ts8e3.add_point(trial=trial, verbose=verbose)
@@ -67,7 +158,16 @@ def params_8e3(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud
     # analytical line
     ana_x = np.linspace(0, 1.2, 100)
     ana_y = ana_x * (t_cool_cold) / t_cool_min * 10. ** (0.6 * ana_x) / 1.5
-    ax.plot(ana_x, ana_y, ls='-.', lw=1, color='k', alpha=0.5)
+
+    # plot shaded region instead of a single line
+    if shade:
+        ax.fill_between(ana_x, y1=1e0, y2=ana_y, ls='-.', lw=1, color='pink', alpha=0.5, zorder=-1)
+        ax.fill_between(ana_x, y1=ana_y, y2=1e5, ls='-.', lw=1, color='slateblue', alpha=0.5, zorder=-1)
+    else:
+        ax.plot(ana_x, ana_y, ls='-.', lw=1, color='k', alpha=0.5)
+    # region labels
+    ax.text(1, ana_y[-1]/4, s='destroyed', ha='right', va='center', rotation=10, fontsize=7)
+    ax.text(1, ana_y[-1], s='survives', ha='right', va='center', rotation=10, fontsize=7)
     
     # axis
     ax.set_xlim(0.18, 1.02)
@@ -75,7 +175,7 @@ def params_8e3(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud
     ax.set_yscale('log')
     ax.set_xlabel(r'$\mathcal{M}_{\rm hot,\ turb}$')
     ax.set_ylabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=0, labelpad=14)
-    ax.legend()
+    # ax.legend()
     # ax.grid()
 
     # add colorbar
@@ -84,6 +184,9 @@ def params_8e3(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud
     # cbar1.set_ticklabels([])
     cbar.ax.set_xlabel('cold', ha='left', labelpad=10)
     cbar.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', rotation=90, labelpad=3)
+    
+    # save and show the figure
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
     return trial, x, y, rp, rp['cloud_radius'] / y, log_cold_frac, t_cool_mix, t_cool_min
 
@@ -97,9 +200,10 @@ Shown in 1 panel
 WITH analytical fits
 """
 
-def params_8e2(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e2_new.pkl',
+def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf',
+               pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e2_new.pkl',
                T_cold = 800, T_hot = 4e6,
-               log_ylimu = 9, ms = 30, plot_ana = False, show_text = True,
+               log_ylimu = 9, ms = 30, plot_ana = False, shade = False, show_text = True,
                cm_cold = None, cm_warm = None):
     from matplotlib.gridspec import GridSpec
 
@@ -107,7 +211,7 @@ def params_8e2(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/c
         plt_elements = pickle.load(handle)
 
     # initialize the plot
-    fig, ax = plt.subplots(figsize=(4.2, 4))
+    fig, ax = plt.subplots(dpi=200, figsize=(4.2, 4))
     # make the markers
     lmarker = MarkerStyle("o", fillstyle="left")
     rmarker = MarkerStyle("o", fillstyle="right")
@@ -143,7 +247,15 @@ def params_8e2(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/c
             ax.text(x_c[j] - 0.3 * np.sqrt(pt_size_c[j])/ms, y_c[j], col, fontsize=6, ha='center', va='center', path_effects=[pe.withStroke(linewidth=1, foreground="white")])
 
     """Plot the analytic line"""
+    ana_lines = []
     if plot_ana:
+        plt.rcParams['text.latex.preamble'] = r'''
+        \usepackage[utf8]{inputenc}
+        \usepackage{amsmath}
+        \usepackage{amssymb}
+        \usepackage{ulem}
+        \usepackage{textcomp}'''
+
         ana_x = np.linspace(0, 1.2, 100)
         import sys
         sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/cooling_scripts'))
@@ -158,78 +270,103 @@ def params_8e2(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/c
         # ax.plot(ana_x, ana_y, ls='-.', color='k', alpha=0.5, label='OG ana')
     
         """warm analytical line 1"""
-        if plot_ana[0]:
-            # temperatures
-            T_cold = T_cold
-            T_peak = 8.57e+03
-            T_warm = 8e3
-            T_hot = T_hot
-            omega = T_cold / T_tcoolmin
-            
-            # timescale @ temperature of interest: where t_cool peaks, aka T_cold for 8000K runs
-            t_cool_peak = t_cool_func(T_peak)
+        # temperatures
+        T_cold = T_cold
+        T_peak = 8.57e+03
+        T_warm = 8e3
+        T_hot = T_hot
+        omega = T_cold / T_tcoolmin
+        
+        # timescale @ temperature of interest: where t_cool peaks, aka T_cold for 8000K runs
+        t_cool_peak = t_cool_func(T_peak)
 
-            # recalculate cooling function from hot to warm gas
-            # ratio of t_cc(hot/cold) to t_cc(hot/warm), to get back to the original
-            ratio_tcc = np.sqrt(T_warm / T_cold)  # warm / cold
-            
-            ana_y = ana_x * t_cool_peak / t_cool_min * ratio_tcc * (10. ** (0.6 * ana_x)) * np.sqrt(omega)
-            ax.plot(ana_x, ana_y, lw=1, ls='-.', color='orangered', alpha=0.5, label='warm 1')
-            plt_elements.append([ana_x, ana_y])
+        # recalculate cooling function from hot to warm gas
+        # ratio of t_cc(hot/cold) to t_cc(hot/warm), to get back to the original
+        ratio_tcc = np.sqrt(T_warm / T_cold)  # warm / cold
+        
+        ana_y = ana_x * t_cool_peak / t_cool_min * ratio_tcc * (10. ** (0.6 * ana_x)) * np.sqrt(omega)
+        ana_lines.append([ana_x, ana_y])
 
         """cold analytical line"""
-        if plot_ana[1]:
-            # temperatures
-            T_cold = T_cold
-            T_peak = 8.57e+03
-            T_warm = 8e3
-            T_hot = T_hot
-            omega = T_cold / T_tcoolmin
-            
-            # timescale @ temperature of interest: where t_cool peaks, aka T_cold for 8000K runs
-            t_cool_peak = t_cool_func(T_peak)
+        # temperatures
+        T_cold = T_cold
+        T_peak = 8.57e+03
+        T_warm = 8e3
+        T_hot = T_hot
+        omega = T_cold / T_tcoolmin
+        
+        # timescale @ temperature of interest: where t_cool peaks, aka T_cold for 8000K runs
+        t_cool_peak = t_cool_func(T_peak)
 
-            # recalculate cooling function from warm to cold gas
-            # ratio of t_cc(hot/cold) to t_cc(warm/cold), to get back to the original            
-            ratio_tcc = np.sqrt(T_hot / T_warm)  # hot / warm
-            
-            ana_y = ana_x * t_cool_peak / t_cool_min * ratio_tcc * (10. ** (0.6 * ana_x)) * np.sqrt(omega)
-            ax.plot(ana_x, ana_y, lw=1, ls='-.', color='blue', alpha=0.5, label='cold')
+        # recalculate cooling function from warm to cold gas
+        # ratio of t_cc(hot/cold) to t_cc(warm/cold), to get back to the original            
+        ratio_tcc = np.sqrt(T_hot / T_warm)  # hot / warm
+        
+        ana_y = ana_x * t_cool_peak / t_cool_min * ratio_tcc * (10. ** (0.6 * ana_x)) * np.sqrt(omega)
+        ana_lines.append([ana_x, ana_y])
         
         """warm analytical line 2"""
-        if plot_ana[2]:
-            # temperatures
-            T_cold = T_cold
-            T_peak = 8.57e+03
-            T_warm = 8e3
-            T_hot = T_hot
-            omega = T_cold / T_tcoolmin
+        # temperatures
+        T_cold = T_cold
+        T_peak = 8.57e+03
+        T_warm = 8e3
+        T_hot = T_hot
+        omega = T_cold / T_tcoolmin
 
-            # timescale of interest: growth time for the warm & cold gas
-            chi_wc = T_warm / T_cold
-            l_shat = 2.4989679118099205e-06
-            cloud_box_ratio = 1/50
-            cs_hot = calc_cs(T_hot)
-            # t_cool of minimum temperature (800K)
-            t_cool_low = t_cool_func(T_cold)
+        # timescale of interest: growth time for the warm & cold gas
+        chi_wc = T_warm / T_cold
+        l_shat = 2.4989679118099205e-06
+        cloud_box_ratio = 1/50
+        cs_hot = calc_cs(T_hot)
+        # t_cool of minimum temperature (800K)
+        t_cool_low = t_cool_func(T_cold)
 
-            # old
-            # ana_y = ana_x *\
-            # (cs_hot * l_shat / t_cool_low) ** (2/3) *\
-            # (10. ** (0.6 * ana_x))**(2/3) *\
-            # (cloud_box_ratio**(1/9)) *\
-            # (chi_wc**(1/3)) *\
-            # np.sqrt(omega)
+        # old
+        # ana_y = ana_x *\
+        # (cs_hot * l_shat / t_cool_low) ** (2/3) *\
+        # (10. ** (0.6 * ana_x))**(2/3) *\
+        # (cloud_box_ratio**(1/9)) *\
+        # (chi_wc**(1/3)) *\
+        # np.sqrt(omega)
 
-            # new
-            ana_y = ana_x *\
-            (cs_hot * t_cool_low / l_shat) ** 2 *\
-            (10. ** (0.6 * ana_x)) ** 2 *\
-            cloud_box_ratio ** (-1/3) *\
-            chi_wc *\
-            np.sqrt(omega)
+        # new
+        ana_y = ana_x *\
+        (cs_hot * t_cool_low / l_shat) ** 2 *\
+        (10. ** (0.6 * ana_x)) ** 2 *\
+        cloud_box_ratio ** (-1/3) *\
+        chi_wc *\
+        np.sqrt(omega)
 
-            ax.plot(ana_x, ana_y, lw=1, ls='-.', color='brown', alpha=0.5, label='warm 2')
+        ana_lines.append([ana_x, ana_y])
+
+
+        """
+        Make the shading or the line separating different regimes
+        """
+        if shade:
+            # both destroyed
+            ax.fill_between(ana_x, y1=np.power(10., 0.5),
+                            y2=ana_lines[0][1], ls='-.', lw=1, ec='None', color='red', alpha=0.2, zorder=-1)
+            # warm survived
+            ax.fill_between(ana_x, y1=ana_lines[0][1],
+                            y2=ana_lines[1][1], ls='-.', lw=1, ec='None', color='orange', alpha=0.2, zorder=-1)
+            # both survived
+            ax.fill_between(ana_x, y1=ana_lines[1][1],
+                            y2=ana_lines[2][1], ls='-', lw=1, ec='None', color='green', alpha=0.2, zorder=-1)
+            # cold survived
+            ax.fill_between(ana_x, y1=ana_lines[2][1],
+                            y2=np.power(10., log_ylimu), ls='-', lw=1, ec='None', color='teal', alpha=0.2, zorder=-1)
+        
+        # plot the lines only
+        ax.plot(ana_lines[0][0], ana_lines[0][1], lw=1, ls='-.', color='orangered', alpha=0.5, label='warm 1')
+        ax.plot(ana_lines[1][0], ana_lines[1][1], lw=1, ls='--', color='blue', alpha=0.5, label='cold')
+        ax.plot(ana_lines[2][0], ana_lines[2][1], lw=1, ls='-.', color='brown', alpha=0.5, label='warm 2')
+        
+        # region labels
+        ax.text(0.9, ana_lines[0][1][-1]/10, s=r'\textbf{\xout{c} \xout{w}}', ha='right', va='center', rotation=10, fontsize=7)
+        ax.text(0.9, ana_lines[1][1][-1]/4, s=r'\textbf{\xout{c} \textcircled{w}}', ha='right', va='center', rotation=10, fontsize=7)
+        ax.text(0.9, ana_lines[2][1][-1]/1e2, s=r'\textbf{\textcircled{c}\textcircled{w}}', ha='right', va='center', rotation=10, fontsize=7)
+        ax.text(0.9, ana_lines[2][1][-1], s=r'\textbf{\textcircled{c} \xout{w}}', ha='right', va='center', rotation=10, fontsize=7)
 
     ax.legend(loc='lower left',
               bbox_to_anchor=[1, 0.75, 0.5, 0.1], fontsize=10,
@@ -243,19 +380,21 @@ def params_8e2(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/c
     ax.set_ylabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=0, labelpad=14)
 
     """color bar"""
+    cbar_height = 0.6
     # cold
-    cbar_ax1 = fig.add_axes([0.915, 0.1, 0.02, 0.6])  # [left, bottom, width, height]
+    cbar_ax1 = fig.add_axes([0.915, 0.1, 0.02, cbar_height])  # [left, bottom, width, height]
     cbar1 = plt.colorbar(scs[0], cax=cbar_ax1, extend='both')
     # cbar1.set_ticklabels([])
     cbar1.ax.set_xlabel('c', labelpad=10)
     # warm
-    cbar_ax2 = fig.add_axes([1.025, 0.1, 0.02, 0.6])  # [left, bottom, width, height]
+    cbar_ax2 = fig.add_axes([1.025, 0.1, 0.02, cbar_height])  # [left, bottom, width, height]
     cbar2 = plt.colorbar(scs[1], cax=cbar_ax2, extend='max')
     # cbar2.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm phase}}{M_{\rm cold, 0}}$ / slope', rotation=90, labelpad=3)
     cbar2.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$ \& warm slope', rotation=90, labelpad=3)
     cbar2.ax.set_xlabel('w', labelpad=1)
 
     # ax.grid()
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -309,11 +448,13 @@ def density_evol_load(trials = ['240715_0.8_16', '240711_0.4_1600', '240715_0.8_
     
     return num_runs, num_epochs, temp_data, rho_data, rcls
 
-def density_evol_plot(data, tccs, plot_temp = True, cmap = 'viridis',
+def density_evol_plot(data, tccs,
+                      figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/density_evol.pdf',
+                      plot_temp = True, cmap = 'viridis',
                       lfs = 16, tfs = 18):
     num_runs, num_epochs, temp_data, rho_data, rcls = data
     # Create the figure and axes
-    fig, axes = plt.subplots(num_runs, num_epochs, figsize=(2 * num_epochs, 2 * num_runs))
+    fig, axes = plt.subplots(num_runs, num_epochs, figsize=(2 * num_epochs, 2 * num_runs), dpi=300)
     
     # normalizations
     norm = mpl.colors.LogNorm(vmin=1e2, vmax=1e7) if plot_temp else mpl.colors.LogNorm(vmin=1e1, vmax=3e3)
@@ -349,7 +490,9 @@ def density_evol_plot(data, tccs, plot_temp = True, cmap = 'viridis',
     # Add the main title
     fig.suptitle(r'$T_{\rm cl} = 8\times 10^2\ {\rm K},\ L_{\rm box}/R_{\rm cl} = 50$', fontsize=tfs, x=0.53, y=0.95)
     plt.subplots_adjust(hspace=0.05, wspace=0.05)
-    # Show the plot
+    
+    # save and show the plot
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -362,7 +505,9 @@ Cold gas mass evolution plot for the Tfloor = 8e2 runs
 With a particular Mach number
 """
 
-def mass_evol(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv', mach = 0.3, cm = None, alpha = 0.5, verbose = False, plot_growth = False):
+def mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol.pdf',
+              csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv',
+              mach = 0.3, cm = None, alpha = 0.5, verbose = False, plot_growth = False):
     """
     Plots evolution of only COLD
     Plots ALL runs for a single Mach number
@@ -378,7 +523,7 @@ def mass_evol(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8
     df.sort_values(by='yval', inplace=True)
     xys, cs = [], []
     
-    fig, ax = plt.subplots(figsize=(5,3))
+    fig, ax = plt.subplots(dpi=200, figsize=(5,3))
     
     for _, row in tqdm(df.iterrows()):
         if (row['x_mach'] < mach - 0.05) or (row['x_mach'] > mach + 0.05):  # if not within range
@@ -461,6 +606,8 @@ def mass_evol(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8
     cbar.set_ticklabels([0, 2, 4, 6, 8])
     cbar.ax.set_ylabel(r'$\log_{10} \frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=90, labelpad=10)
     ax.set_title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: ${rp['grid_dim']}^3$')
+
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -473,7 +620,7 @@ Mass distributions by scalar value
 Shown as a 2D histogram
 """
 
-def tracer_temp_evol():
+def tracer_temp_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/tracer_temp_evol.pdf'):
     pass
 
 
@@ -486,7 +633,8 @@ Shown in 3 panels
 With analytical linear fits
 """
 
-def params_tcc_tchar_fit(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e2_new_timescales.pkl',
+def params_tcc_tchar_fit(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_tcc_tchar_fit.pdf',
+                         pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e2_new_timescales.pkl',
                          log_ylimu = 9, ms = 30, plot_ana = False, show_text = True, fs = 14,
                          cm_cold = None, cm_warm = None):
     # load the trials
@@ -578,4 +726,5 @@ def params_tcc_tchar_fit(pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/da
     cbar2.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$ \& warm slope', fontsize=fs, rotation=90, labelpad=5)
     cbar2.ax.set_xlabel('w', labelpad=10)
     
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()

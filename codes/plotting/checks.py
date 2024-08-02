@@ -29,8 +29,7 @@ def check_vturb_mach(trial=''):
     fname = f'{datapath}/turb/Turb.hst'
 
     # load run properties
-    with open(f'{datapath}/params.pickle', 'rb') as handle:
-        rp = pickle.load(handle)
+    rp = get_rp(trial)
 
     # load hst file
     with open(fname, 'r') as file: keys_raw = file.readlines()[1]

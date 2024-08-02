@@ -159,8 +159,7 @@ def load_lshat(rp = None, verbose = False):
 def add_point(trial = '240613_0.1_10', verbose = True):
     # load function
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
-    with open(f'{datapath}/params.pickle', 'rb') as handle:
-        rp = pickle.load(handle)
+    rp = get_rp(trial)
     if verbose: print(rp)
     l_shatter_min, t_cool_mix, t_cool_min, t_cool_cold = load_lshat(rp = rp, verbose=verbose)
     vel_frac = rp['cloud_radius'] / l_shatter_min
