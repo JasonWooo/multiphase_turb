@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.gridspec as gridspec
 
 from codes.funcs import *  # import everything in functions
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -153,6 +154,7 @@ def plot_cooling_panel(trial = '', shade = True, fs = 12):
     tcool_arr = np.vectorize(cf.tcool_calc)(
         rho_arr, T_arr, Zsol=1.0, Lambda_fac=1.0, fit_type="max"
     )
+    t_cool_func = lambda T : cf.tcool_calc(rp['rho_hot'] * rp['T_hot'] / T, T, Zsol=1.0, Lambda_fac=1.0, fit_type="max")
 
     """Temperatures"""
     # the two limits
@@ -175,29 +177,176 @@ def plot_cooling_panel(trial = '', shade = True, fs = 12):
             ax.axvline(x=T_mix, lw=1, linestyle="--", color="green", alpha=0.2)
             ax.axvline(x=T_hot, lw=1, linestyle="--", color="orangered", alpha=0.2)
     
-    """Plot the [functions and timescales]"""
+    """
+    Plot the [functions and timescales]
+    """
 
-    # Cooling function
+    """Cooling function"""
     ax1.plot(T_arr, Lambda_arr, lw=1, ls='-', color='k', alpha=1, label=r"$\Lambda(T)$")
     
     ax1.set_ylabel(r"$\Lambda(T)$  $[\mathrm{ergs ~ cm}^3/\mathrm{s}]$", fontsize=fs)
     ax1.set_xlabel(r"$T$(K)", fontsize=fs)
     ax1.set_yscale("log")
     ax1.set_xscale("log")
-    ax1.legend(loc='lower left', bbox_to_anchor=(0.57, 0.1), fontsize=fs, alignment='left')
+    ax1.set_ylim(1e-29, 1e-21)
     
-    # Cooling timescale
+    
+    """Cooling timescale"""
+    # plot the timescale on a twin axis
     ax2 = ax1.twinx()
     ax2.plot(T_arr, tcool_arr, lw=1, ls='--', color='k', alpha=1, label=r"$t_{\rm cool}$")
+
+    # label the points
+    # t_cool,min
+    T_tcoolmin = T_arr[np.argmin(tcool_arr)]
+    t_cool_min = t_cool_func(T_tcoolmin)
+    ax2.scatter(T_tcoolmin, t_cool_min, marker='x', color='k', s=10, linewidths=1)
+    ax2.text(T_tcoolmin, t_cool_min / 3, r'$t_{\rm cool, min}$', ha='center')
+    # t_cool,peak
+    T_peak = T_arr[np.argmax(tcool_arr[0 : find_ind_l(T_arr, 2e4)])]
+    t_cool_peak = t_cool_func(T_peak)
+    ax2.scatter(T_peak, t_cool_peak, marker='x', color='k', s=10, linewidths=1)
+
+    ax2.text(T_peak, t_cool_peak * 3, r'$t_{\rm cool, peak}$', ha='center')
 
     ax2.set_ylabel(r"$t_{\rm cool}\ [{\rm Myr}]$", fontsize=fs)
     ax2.set_yscale("log")
     ax2.set_xscale("log")
     ax2.set_xlim(rp['T_floor'], rp['T_ceil'])
-    ax2.set_ylim(tcool_arr.min(), tcool_arr.max())
-    ax2.legend(loc='lower left', bbox_to_anchor=(0.57, 0.2), fontsize=fs, alignment='left')
+    ax2.set_ylim(1e-5, 1e7)
 
-    # plot_tvlines(ax=ax2, shade=shade)
+    ax1.legend(loc='lower left', bbox_to_anchor=(0.6, 0), fontsize=fs, alignment='left')
+    ax2.legend(loc='lower left', bbox_to_anchor=(0.6, 0.1), fontsize=fs, alignment='left')
+    plot_tvlines(ax=ax2, shade=shade)
+    
+    plt.show()
+
+
+def plot_cooling_panel_hist(trial = '', shade = True, fs = 12, snapshot = 20):
+    """plots the cooling function and timescale from a trial
+    Everything goes into the same panel
+    Added top panel for plotting temperature hist of one of the snapshots
+    """
+    """Make the plot"""
+    # use gridspec
+    fig = plt.figure(figsize=(4, 3), dpi=300)
+    gs = gridspec.GridSpec(2, 1, height_ratios=[1, 4])  # ratio
+    # main plot
+    ax1 = fig.add_subplot(gs[1])
+
+    # retrieves run params
+    datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+    rp = get_rp(trial=trial)
+
+    # Import the cooling function from Hitesh's scripts
+    import sys
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/cooling_scripts'))
+    import cooling_fn as cf
+    sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena/helper_scripts'))
+    import v_turb as vt
+
+    # temperature range
+    T_arr = np.logspace(np.log10(rp['T_floor']),
+                        np.log10(rp['T_ceil']), 100)  # in kelvin
+    rho_arr = rp['rho_hot'] * rp['T_hot'] / T_arr
+    
+    """
+    Cooling & Heating functions
+    """
+    Gamma_n_arr = 1e-26 / rho_arr
+    Lambda_arr = np.vectorize(cf.Lam_fn_powerlaw)(T_arr, Zsol=1.0, Lambda_fac=1.0)
+    
+    """
+    Cooling & Heating rates
+    """
+    heating_rate = 1e-26 * rho_arr
+    cooling_rate = Lambda_arr * rho_arr**2
+    
+    """
+    Timescale
+    """
+    tcool_arr = np.vectorize(cf.tcool_calc)(
+        rho_arr, T_arr, Zsol=1.0, Lambda_fac=1.0, fit_type="max"
+    )
+    t_cool_func = lambda T : cf.tcool_calc(rp['rho_hot'] * rp['T_hot'] / T, T, Zsol=1.0, Lambda_fac=1.0, fit_type="max")
+
+    """Temperatures"""
+    # the two limits
+    T_cold = rp['T_cloud']  # set cold temperature to that of cloud
+    T_hot = rp['T_hot']
+    T_mix = np.sqrt(T_cold * T_hot)
+
+    def plot_tvlines(ax, shade=False):
+        if shade:
+            y1, y2 = ax.get_ylim()
+            ax.fill_between(x=[T_cold, 2 * T_cold], y1=y1, y2=y2, linestyle="None", color="slateblue", alpha=0.2)  # cold
+            ax.fill_between(x=[2 * T_cold, T_mix], y1=y1, y2=y2, linestyle="None", color="green", alpha=0.2)  # warm
+            ax.fill_between(x=[T_mix, rp['T_ceil']], y1=y1, y2=y2, linestyle="None", color="orangered", alpha=0.2)  # hot
+        else:
+            # only plot the definitions for cold, warm/mix, and hot
+            ax.axvline(x=T_cold, lw=1, linestyle="--", color="slateblue", alpha=0.2)
+            ax.axvline(x=T_mix, lw=1, linestyle="--", color="green", alpha=0.2)
+            ax.axvline(x=T_hot, lw=1, linestyle="--", color="orangered", alpha=0.2)
+    
+    """
+    Plot the [functions and timescales]
+    """
+
+    """Cooling function"""
+    ax1.plot(T_arr, Lambda_arr, lw=1, ls='-', color='k', alpha=1, label=r"$\Lambda(T)$")
+    
+    ax1.set_ylabel(r"$\Lambda(T)$  $[\mathrm{ergs ~ cm}^3/\mathrm{s}]$", fontsize=fs)
+    ax1.set_xlabel(r"$T$(K)", fontsize=fs)
+    ax1.set_yscale("log")
+    ax1.set_xscale("log")
+    ax1.set_ylim(1e-29, 1e-21)
+    
+    
+    """Cooling timescale"""
+    # plot the timescale on a twin axis
+    ax2 = ax1.twinx()
+    ax2.plot(T_arr, tcool_arr, lw=1, ls='--', color='k', alpha=1, label=r"$t_{\rm cool}$")
+
+    # label the points
+    # t_cool,min
+    T_tcoolmin = T_arr[np.argmin(tcool_arr)]
+    t_cool_min = t_cool_func(T_tcoolmin)
+    ax2.scatter(T_tcoolmin, t_cool_min, marker='x', color='k', s=10, linewidths=1)
+    ax2.text(T_tcoolmin, t_cool_min / 3, r'$t_{\rm cool, min}$', ha='center')
+    # t_cool,peak
+    T_peak = T_arr[np.argmax(tcool_arr[0 : find_ind_l(T_arr, 2e4)])]
+    t_cool_peak = t_cool_func(T_peak)
+    ax2.scatter(T_peak, t_cool_peak, marker='x', color='k', s=10, linewidths=1)
+
+    ax2.text(T_peak, t_cool_peak * 3, r'$t_{\rm cool, peak}$', ha='center')
+
+    ax2.set_ylabel(r"$t_{\rm cool}\ [{\rm Myr}]$", fontsize=fs)
+    ax2.set_yscale("log")
+    ax2.set_xscale("log")
+    ax2.set_xlim(rp['T_floor'], rp['T_ceil'])
+    ax2.set_ylim(1e-5, 1e7)
+
+    ax1.legend(loc='lower left', bbox_to_anchor=(0.6, 0), fontsize=fs, alignment='left')
+    ax2.legend(loc='lower left', bbox_to_anchor=(0.6, 0.1), fontsize=fs, alignment='left')
+    plot_tvlines(ax=ax2, shade=shade)
+
+
+    """Shared x axis for 1d histogram"""
+    ax_hist = fig.add_subplot(gs[0], sharex=ax1)
+
+    fname=f'{datapath}/cloud/Turb.out2.{snapshot:05d}.athdf'
+    rho, press = get_datamds(fname=fname, verbose=False, keys=['rho', 'press'])
+    hist_data = calc_T(press, rho).flatten()
+    hist_data = np.concatenate([hist_data, [800] * 10000, [1600] * 1000])
+
+    bins_log = np.power(10., np.linspace(np.log10(rp['T_floor']), np.log10(rp['T_ceil']), 50))
+    counts, bins, _ = ax_hist.hist(hist_data, bins=bins_log, alpha=1, color='grey', edgecolor='None')
+    ax_hist.text(ax1.get_xlim()[0] / 10, 1e-6, 'frequency', ha='left', va='bottom', rotation=90, fontsize=fs)
+    # ax_hist.set_yscale('log')
+    ax_hist.set_ylim(0, np.max(counts))
+    ax_hist.axis('off')
+    
+    plt.subplots_adjust(hspace=0)
     plt.show()
 
 """

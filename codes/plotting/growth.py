@@ -162,7 +162,7 @@ def plot_evol_both_trial(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/sa
         break
         
     # y axis
-    ax.set_ylim(-0.1, 1)
+    # ax.set_ylim(-0.1, 2)
     ax.set_ylabel(r'$M_{\rm phase} / M_{\rm cold, ini}$')
     
     # x axis
@@ -274,7 +274,8 @@ def plot_evol_all_both(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
     plt.show()
 
 
-def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv', mach = 0.3, cm = None, alpha = 0.5, verbose = False, plot_growth = False):
+def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv', mach = 0.3, cm = None, alpha = 0.5,
+                       verbose = False, plot_growth = False, growth_temps = [8e3, 8e2]):
     """
     Plots evolution of only COLD
     Plots ALL runs for a single Mach number
@@ -282,6 +283,8 @@ def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
     Corresponds to Figure 5 in the paper
     -----
     mach: only plot the points for a certain mach number
+    plot_growth: whether or not the expected growth is plotted
+        growth_temps: provided for t_grow calculations
     """
     from matplotlib.collections import LineCollection
     import pandas as pd
@@ -318,8 +321,7 @@ def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
         log_mass_frac = row['log_cold_mass']#np.log10(cg[-1] / cg[cg_st_epoch])
     
         """Load run parameters"""
-        with open(f'{datapath}/params.pickle', 'rb') as handle:
-            rp = pickle.load(handle)
+        rp = get_rp(trial=row['trial'])
     
         x = dataf['time'] / rp['t_eddy']
         y = dataf['cold_gas'] / dataf['cold_gas'][cg_st_epoch]
@@ -327,31 +329,35 @@ def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
 
         # get the normalized cloud size
         coeff, expo = s_n(row["yval"])
-        ax.plot(x, y, lw=1, ls='-', color=color, alpha=0.5, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        ax.plot(x, y, lw=1, ls='-', color=color, alpha=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
 
 
         """Plot all expected growths"""
         if plot_growth:
-            if (plot_growth == -1) and (row["yval"] < 1e8):
+            # filter out all the runs with small radii
+            if (plot_growth == -1) and (row["yval"] < 1e4):
                 continue
             # load t_cool_min
             l_shatter_min, t_cool_mix, t_cool_min, [t_cool_func, T_tcoolmin, T_mix] = load_lshat(rp=rp, verbose=verbose)
+
+            [T_high, T_low] = growth_temps
+            T_peak = 8.57e+03
+            chi_growth = T_high / T_low
     
             # growth time
-            t_grow = alpha * rp['chi'] *\
+            t_grow = alpha * chi_growth *\
             (rp['mach'] ** (-1/2)) *\
             (row['yval'] ** (1/2)) *\
             ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
-            t_cool_min
+            t_cool_func(T_peak)  # the t_cool for the lower temperature
     
             # use actual time, plot eddie time
-            print(alpha, rp['chi'], rp['mach'], row['yval'], rp['box_size'] / rp['cloud_radius'])
             print(t_grow, rp['t_eddy'], t_cool_min)
             cold_frac = np.exp(dataf['time'] / t_grow)
             ax.plot(x, cold_frac, lw=1, ls=':', alpha=0.5, color=color)
 
     # y axis
-    ax.set_ylim(1/3, 3)
+    ax.set_ylim(1/3, 10)
     # yticks = np.logspace(np.log10(1/5), np.log10(5), 10)
     # ax.set_yticks(yticks)
     # ax.set_yticklabels(yticks)
@@ -373,7 +379,8 @@ def plot_evol_all_cold(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
     cbar.set_ticklabels([0, 2, 4, 6, 8])
     cbar.ax.set_ylabel(r'$\log_{10} \frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=90, labelpad=10)
     ax.set_title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: ${rp['grid_dim']}^3$')
-    plt.show()
+    # plt.show()
+    return ax, x, dataf['time']
 
 
 
