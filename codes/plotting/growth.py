@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from tqdm import tqdm
 from codes.funcs import *  # import everything in functions
 from codes.timescales import *
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -482,3 +483,90 @@ def plot_evol_all_ratio(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/sav
         ax2.legend(loc='lower right', bbox_to_anchor=(1.3,0.1), fontsize=10, alignment='center')
 
     plt.show()
+
+
+# grab the growth rates of all the runs
+
+def growth_rate_calc(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e3.csv',
+                    mach = 0.4, alpha = 0.5):
+    """
+    Returns a table of calculated and actual growth rates of all runs in the csv
+    -----
+    mach: only plot the points for a certain mach number
+    """
+    import pandas as pd
+    df = pd.read_csv(csvpath, comment='#')
+    df['yval'] = df["r_cl"] / df["l_shat"]
+    df.sort_values(by='yval', inplace=True)
+    xys, cs = [], []
+    
+    # for each box
+    for _, row in df.iterrows():
+        if (row['x_mach'] < mach - 0.05) or (row['x_mach'] > mach + 0.05):  # if not within range
+            continue
+        datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{row['trial']}'
+        
+        """Load history file"""
+        # try
+        try:
+            fname = f'{datapath}/turb/Turb.hst'
+            with open(fname, 'r') as file: keys_raw = file.readlines()[1]
+            keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
+        except:
+            fname = f'{datapath}/cloud/Turb.hst'
+            with open(fname, 'r') as file: keys_raw = file.readlines()[1]
+            keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
+        
+        fname = f'{datapath}/cloud/Turb.hst'
+        data = np.loadtxt(fname).T
+        dataf = {keys[i]: data[i] for i in range(len(keys))}
+        
+        """Load masses"""
+        # gas masses
+        cg = dataf['cold_gas']
+        wg = dataf['warm_gas']
+        cg_st_epoch = (cg != 0).argmax()
+    
+        rp = get_rp(trial=row['trial'])
+        x = dataf['time'] / rp['t_cc']
+
+        cg_norm = cg / cg[cg_st_epoch]
+        wg_norm = wg / cg[cg_st_epoch]
+        # smoothen the lines
+        from scipy.ndimage.filters import gaussian_filter1d
+        cg_smoothed = gaussian_filter1d(cg_norm, sigma=10)
+        wg_smoothed = gaussian_filter1d(wg_norm, sigma=10)
+
+        # the x and y values
+        time = x[-100:]
+        m_cold = cg_smoothed[-100:]
+        m_warm = wg_smoothed[-100:]
+        y_cold = np.log(m_cold / m_cold[0])
+        y_warm = np.log(m_warm / m_warm[0])
+        
+        """Run growths"""
+        tgrow_cold_run = 1 / np.polyfit(time, y_cold, deg=1, full=False)[0]  # slope of the fit
+        tgrow_warm_run = 1 / np.polyfit(time, y_warm, deg=1, full=False)[0]  # slope of the fit
+
+
+        """Calculated growths"""
+        # load t_cool_min
+        l_shatter_min, t_cool_mix, t_cool_min, [t_cool_func, T_tcoolmin, T_mix] = load_lshat(rp=rp, verbose=False)
+
+        # growth time for cold
+        tgrow_cold_calc = alpha * rp['chi'] *\
+        (rp['mach'] ** (-1/2)) *\
+        (row['yval'] ** (1/2)) *\
+        ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
+        t_cool_min
+
+        # for warm
+        tgrow_warm_calc = alpha * (rp['chi'] / 10) *\
+        (rp['mach'] ** (-1/2)) *\
+        (row['yval'] ** (1/2)) *\
+        ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
+        t_cool_min
+
+        print(row['trial'])
+        print(f"{'cold, run:':<20} {tgrow_cold_run:<20.3f} {'cold, calc:':<20} {tgrow_cold_calc:<10.3f}")
+        print(f"{'warm, run:':<20} {tgrow_warm_run:<20.3f} {'warm, calc:':<20} {tgrow_warm_calc:<10.3f}\n")  #{' ' * 20} 

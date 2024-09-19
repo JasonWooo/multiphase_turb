@@ -173,8 +173,7 @@ Shown in 1 panel with the analytical fit
 
 def params_8e3(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e3.pdf',
                csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e3.csv',
-               cm = None, cg_st_epoch = 0,
-               show_text = False, shade = False, tfs = 7, lfs = 12,
+               cm = None, cg_st_epoch = 0, shade = False,
                verbose = False):
     # load the trials
     df = pd.read_csv(csvpath, comment='#')
@@ -205,11 +204,10 @@ def params_8e3(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e3.pdf'
         sc = ax.scatter(x, y, marker='o',
                         c=log_frac_mean, vmin=-0.3, vmax=0.3, ec='k', cmap=cm)
 
-        if show_text:
-            col = log_frac_mean
-            if np.isclose(col, -.5): col = -np.inf  # catchs only the cold values
-            col = f'{col:.2f}'.replace('-', '\N{MINUS SIGN}')
-            plt.text(x + 0.05, y, col, fontsize=8, ha='left', va='center')
+        col = log_frac_mean
+        if np.isclose(col, -.5): col = -np.inf  # catchs only the cold values
+        col = f'{col:.2f}'.replace('-', '\N{MINUS SIGN}')
+        plt.text(x + 0.05, y, col, fontsize=8, ha='left', va='center')
         
     # analytical line
     ana_x = np.linspace(0, 1.2, 100)
@@ -222,15 +220,15 @@ def params_8e3(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e3.pdf'
     else:
         ax.plot(ana_x, ana_y, ls='-.', lw=1, color='k', alpha=0.5)
     # region labels
-    ax.text(1, ana_y[-1]/4, s='destroyed', ha='right', va='center', rotation=10, fontsize=tfs)
-    ax.text(1, ana_y[-1], s='survives', ha='right', va='center', rotation=10, fontsize=tfs)
+    ax.text(1, ana_y[-1]/4, s='destroyed', ha='right', va='center', rotation=10, fontsize=7)
+    ax.text(1, ana_y[-1], s='survives', ha='right', va='center', rotation=10, fontsize=7)
     
     # axis
     ax.set_xlim(0.18, 1.02)
     ax.set_ylim(np.power(10., 0), np.power(10., 5))
     ax.set_yscale('log')
-    ax.set_xlabel(r'$\mathcal{M}_{\rm hot,\ turb}$', fontsize=lfs)
-    ax.set_ylabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=0, labelpad=14, fontsize=lfs)
+    ax.set_xlabel(r'$\mathcal{M}_{\rm hot,\ turb}$')
+    ax.set_ylabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=0, labelpad=14)
     # ax.legend()
     # ax.grid()
 
@@ -238,8 +236,8 @@ def params_8e3(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e3.pdf'
     cbar_ax = fig.add_axes([0.915, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
     cbar = plt.colorbar(sc, cax=cbar_ax, extend='both')
     # cbar1.set_ticklabels([])
-    cbar.ax.set_xlabel('cold', ha='left', labelpad=10, fontsize=tfs)
-    cbar.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', rotation=90, labelpad=3, fontsize=lfs)
+    cbar.ax.set_xlabel('cold', ha='left', labelpad=10)
+    cbar.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', rotation=90, labelpad=3)
     
     # save and show the figure
     plt.savefig(figpath, format="pdf", bbox_inches="tight")
@@ -259,8 +257,8 @@ WITH analytical fits
 def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf',
                pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e2_new.pkl',
                T_cold = 800, T_hot = 4e6,
-               log_ylimu = 9, ms = 30, plot_ana = False, shade = False, show_text = True, legend_on_plot = True,
-               cm_cold = None, cm_warm = None, lfs = 10, tfs = 7):
+               log_ylimu = 9, ms = 30, plot_ana = False, shade = False, show_text = True,
+               cm_cold = None, cm_warm = None):
     from matplotlib.gridspec import GridSpec
 
     with open(pickle_path, 'rb') as handle:
@@ -360,7 +358,7 @@ def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf'
         
         ana_y = ana_x * t_cool_peak / t_cool_min * ratio_tcc * (10. ** (0.6 * ana_x)) * np.sqrt(omega)
         ana_lines.append([ana_x, ana_y])
-
+        
         """warm analytical line 2"""
         # temperatures
         T_cold = T_cold
@@ -419,67 +417,35 @@ def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf'
         ax.plot(ana_lines[2][0], ana_lines[2][1], lw=1, ls='-.', color='brown', alpha=0.5, label=r'$\frac {t_{\rm cc,wc}} {t_{\rm grow,wc}}$')
         
         # region labels
-        # ax.text(0.9, ana_lines[0][1][-1]/10, s=r'\textbf{\xout{c} \xout{w}}', ha='right', va='center', rotation=10, fontsize=7)  # the old fancy labels
-        # ax.text(0.9, ana_lines[1][1][-1]/4, s=r'\textbf{\xout{c} \textcircled{w}}', ha='right', va='center', rotation=10, fontsize=7)
-        # ax.text(0.9, ana_lines[2][1][-1]/1e2, s=r'\textbf{\textcircled{c}\textcircled{w}}', ha='right', va='center', rotation=10, fontsize=7)
-        # ax.text(0.9, ana_lines[2][1][-1], s=r'\textbf{\textcircled{c} \xout{w}}', ha='right', va='center', rotation=10, fontsize=7)
-        def find_ana_ind(which_ana, where_x):
-            [ana_x, ana_y] = ana_lines[which_ana]
-            return ana_y[find_ind_l(ana_x, where_x)]
-        # from bottom to top
-        where_x = 0.91
-        rot = 7
-        ax.text(where_x, find_ana_ind(0, where_x)/10, s=r'\texttt{cDwD}', ha='right', va='center', rotation=rot, fontsize=tfs)  # the new labels consistent with text
-        ax.text(where_x, find_ana_ind(0, where_x)*3, s=r'\texttt{cDwS}', ha='right', va='center', rotation=rot, fontsize=tfs)
-        ax.text(where_x, find_ana_ind(1, where_x)*30, s=r'\texttt{cSwS}', ha='right', va='center', rotation=rot, fontsize=tfs)
-        ax.text(where_x, find_ana_ind(2, where_x)*10, s=r'\texttt{cSwD}', ha='right', va='center', rotation=rot, fontsize=tfs)
+        ax.text(0.9, ana_lines[0][1][-1]/10, s=r'\textbf{\xout{c} \xout{w}}', ha='right', va='center', rotation=10, fontsize=7)
+        ax.text(0.9, ana_lines[1][1][-1]/4, s=r'\textbf{\xout{c} \textcircled{w}}', ha='right', va='center', rotation=10, fontsize=7)
+        ax.text(0.9, ana_lines[2][1][-1]/1e2, s=r'\textbf{\textcircled{c}\textcircled{w}}', ha='right', va='center', rotation=10, fontsize=7)
+        ax.text(0.9, ana_lines[2][1][-1], s=r'\textbf{\textcircled{c} \xout{w}}', ha='right', va='center', rotation=10, fontsize=7)
 
-
-    """legend"""
-    if legend_on_plot:
-        where_x = 0.25
-        rot = 10; sep = 1.2
-        # ax.text(where_x, find_ana_ind(0, where_x) * sep, s=r'${t_{\rm cc,hw}}$', ha='left', va='bottom', rotation=rot, fontsize=tfs)
-        # ax.text(where_x, find_ana_ind(1, where_x) * sep, s=r'${t_{\rm cc,wc}}$', ha='left', va='bottom', rotation=rot, fontsize=tfs)
-        # ax.text(where_x, find_ana_ind(2, where_x) * sep, s=r'${t_{\rm cc,wc}}$', ha='left', va='bottom', rotation=rot, fontsize=tfs)
-        # ax.text(where_x, find_ana_ind(0, where_x), s=r'$={t_{\rm cool,peak}}$', ha='left', va='top', rotation=rot, fontsize=tfs)
-        # ax.text(where_x, find_ana_ind(1, where_x), s=r'$={t_{\rm cool,peak}}$', ha='left', va='top', rotation=rot, fontsize=tfs)
-        # ax.text(where_x, find_ana_ind(2, where_x), s=r'$={t_{\rm grow,wc}}$', ha='left', va='top', rotation=rot, fontsize=tfs)
-        ax.text(where_x, find_ana_ind(0, where_x) * sep / 3, s=r'$\frac {t_{\rm cc,hw}} {t_{\rm cool,peak}}$', ha='left', va='center', rotation=rot-1, fontsize=tfs+2)  # bottom to top
-        ax.text(where_x, find_ana_ind(1, where_x) * sep * 3, s=r'$\frac {t_{\rm cc,wc}} {t_{\rm cool,peak}}$', ha='left', va='center', rotation=rot, fontsize=tfs+2)
-        ax.text(where_x, find_ana_ind(2, where_x) * sep * 3, s=r'$\frac {t_{\rm cc,wc}} {t_{\rm grow,wc}}$', ha='left', va='center', rotation=rot+2, fontsize=tfs+2)
-
-        ax.set_xlim(0.23, 0.92)
-    else:  # standalone legend
-        ax.legend(loc='lower left',
-                bbox_to_anchor=[1, 0.75, 0.5, 0.1], fontsize=lfs,
-                frameon=False, fancybox=False, edgecolor='darkgray')
-        ax.set_xlim(0.28, 0.92)
+    ax.legend(loc='lower left',
+              bbox_to_anchor=[1, 0.75, 0.5, 0.1], fontsize=10,
+              frameon=False, fancybox=False, edgecolor='darkgray')
     # axis
+    # ax.set_xlim(0.2, 1)
+    ax.set_xlim(0.28, 0.92)
     ax.set_ylim(np.power(10., 0.5), np.power(10., log_ylimu))
     ax.set_yscale('log')
-    ax.set_xlabel(r'$\mathcal{M}_{\rm hot,\ turb}$', fontsize=lfs)
-    ax.set_ylabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=0, labelpad=14, fontsize=lfs)
+    ax.set_xlabel(r'$\mathcal{M}_{\rm hot,\ turb}$')
+    ax.set_ylabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=0, labelpad=14)
 
     """color bar"""
-    cbar_width = 0.37
+    cbar_height = 0.6
     # cold
-    # cbar_ax1 = fig.add_axes([0.915, 0.1, 0.02, cbar_width])  # [left, bottom, width, height]
-    cbar_ax1 = fig.add_axes([0.1, 0.92, cbar_width, 0.02])  # [left, bottom, width, height]
-    cbar1 = plt.colorbar(scs[0], cax=cbar_ax1, orientation='horizontal', extend='both')
+    cbar_ax1 = fig.add_axes([0.915, 0.1, 0.02, cbar_height])  # [left, bottom, width, height]
+    cbar1 = plt.colorbar(scs[0], cax=cbar_ax1, extend='both')
     # cbar1.set_ticklabels([])
-    cbar_ax1.xaxis.set_ticks_position('top'); cbar_ax1.tick_params(axis='x', which='major', pad=1)  # make x axis ticks on top
-    cbar1.ax.set_xlabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$ (cold)', labelpad=-35, fontsize=lfs)
-    # cbar1.ax.set_ylabel('c', labelpad=15, rotation=0, fontsize=tfs)
-    
+    cbar1.ax.set_xlabel('c', labelpad=10)
     # warm
-    # cbar_ax2 = fig.add_axes([1.025, 0.1, 0.02, cbar_width])  # [left, bottom, width, height]
-    cbar_ax2 = fig.add_axes([0.9-cbar_width, 0.92, cbar_width, 0.02])  # [left, bottom, width, height]
-    cbar2 = plt.colorbar(scs[1], cax=cbar_ax2, orientation='horizontal', extend='max')
+    cbar_ax2 = fig.add_axes([1.025, 0.1, 0.02, cbar_height])  # [left, bottom, width, height]
+    cbar2 = plt.colorbar(scs[1], cax=cbar_ax2, extend='max')
     # cbar2.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm phase}}{M_{\rm cold, 0}}$ / slope', rotation=90, labelpad=3)
-    cbar_ax2.xaxis.set_ticks_position('top'); cbar_ax2.tick_params(axis='x', which='major', pad=1)  # make x axis ticks on top
-    cbar2.ax.set_xlabel(r'slope (warm)', labelpad=-30, fontsize=lfs)
-    # cbar2.ax.set_ylabel('w', labelpad=5, rotation=0, fontsize=tfs)
+    cbar2.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$ \& warm slope', rotation=90, labelpad=3)
+    cbar2.ax.set_xlabel('w', labelpad=1)
 
     # ax.grid()
     plt.savefig(figpath, format="pdf", bbox_inches="tight")
@@ -526,7 +492,6 @@ def density_evol_load(trials = ['240715_0.8_16', '240711_0.4_1600', '240715_0.8_
             # print(fname)
             rho = get_datamd(fname=fname, verbose=False, key='rho')
             
-            # PROJECTED density, not averaged
             dens_proj = np.sum(rho, axis=0)
             rho_data[i][j] = dens_proj
     
@@ -549,15 +514,8 @@ def density_evol_plot(data, tccs,
     # row_titles = rcls
     row_titles = [20, 2000, 200000, 200000000][::-1]
 
-    # text for regime labels
-    regimes = [r'\texttt{cDwD}', r'\texttt{cDwS}', r'\texttt{cSwS}', r'\texttt{cSwD}'][::-1]
-
     # Plot each panel
     for i in range(num_runs):
-        # regime labels
-        ax_temp = axes[i, 0]
-        ax_temp.text(0.02, 0.98, regimes[i],
-                     color='white', transform=ax_temp.transAxes, ha='left', va='top', fontsize=lfs)
         for j in range(num_epochs):
             ax = axes[i, j]
             ax.set_xticks([])
@@ -577,7 +535,7 @@ def density_evol_plot(data, tccs,
 
     cax = np.array(axes).flatten()[num_epochs * 2 - 1].inset_axes([1.1, -2, 0.08, 4])
     cbar = fig.colorbar(img, cax=cax, orientation='vertical', location='right', pad=0.1, shrink=0.8, aspect=30)
-    cbar.set_label(r'projected density $\rho$ [amu]', fontsize=lfs) #mp/$\rm{cm}^3$
+    cbar.set_label(r'density $\rho$ [mp/$\rm{cm}^3$]', fontsize=lfs)
 
     # Add the main title
     fig.suptitle(r'$T_{\rm cloud} = 8\times 10^2\ {\rm K},\ L_{\rm box}/R_{\rm cl} = 50$', fontsize=tfs, x=0.53, y=0.95)
@@ -661,17 +619,12 @@ def temp_rcl_plot(data, tccs,
     # R_cl values in pc
     # rcl_titles = rcls
     rcl_titles = [20, 2000, 200000, 200000000]
-    regimes = [r'\texttt{cDwD}', r'\texttt{cDwS}', r'\texttt{cSwS}', r'\texttt{cSwD}']
 
     # plot each panel
     for i in range(num_runs):
         ax = axes[i]
         ax.set_xticks([])
         ax.set_yticks([])
-
-        # label the regimes
-        ax.text(0.98, 0.02, regimes[i],
-                color='white', transform=ax.transAxes, ha='right', va='bottom', fontsize=lfs)
 
         # make the plot
         data = temp_data[i]
@@ -774,7 +727,7 @@ def mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol.pdf',
 
         # get the normalized cloud size
         coeff, expo = s_n(row["yval"])
-        ax.plot(x, ysmoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        ax.plot(x, ysmoothed, lw=1, ls='-', color=color, alpha=0.5, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
 
 
         """Plot all expected growths"""
@@ -796,10 +749,6 @@ def mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol.pdf',
             print(t_grow, rp['t_eddy'], t_cool_min)
             cold_frac = np.exp(dataf['time'] / t_grow)
             ax.plot(x, cold_frac, lw=1, ls=':', alpha=0.5, color=color)
-
-
-    # add a horizontal dashed line at y=1
-    ax.axhline(y=1, lw=0.8, ls='--', alpha=0.5, color='k', zorder=-1)
 
     # y axis
     ax.set_ylim(1/3, 3)
@@ -836,8 +785,7 @@ def mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol.pdf',
 def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_both.pdf',
                     csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e3.csv',
                     mach = 0.4, plot_growth = 0,
-                    cm = None, alpha = 0.5, verbose = False, plot_legend = False,
-                    lfs = 12, tfs = 14):
+                    cm = None, alpha = 0.5, verbose = False, plot_legend = False, lfs = 12, tfs = 14):
     """
     Plots evolution of both COLD AND WARM
     Plots ALL runs for a single Mach number
@@ -854,7 +802,7 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     xys, cs = [], []
     
     # plots
-    fig = plt.figure(figsize=(4, 5), dpi=200)
+    fig = plt.figure(figsize=(5, 6), dpi=200)
     gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])  # ratio
     ax1 = fig.add_subplot(gs[0])  # cold
     ax2 = fig.add_subplot(gs[1], sharex=ax1)  # warm
@@ -899,8 +847,8 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
 
         # get the normalized cloud size
         coeff, expo = s_n(row["yval"])
-        ax1.plot(x, y_cg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
-        ax2.plot(x, y_wg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        ax1.plot(x, y_cg_smoothed, lw=1, ls='-', color=color, alpha=0.5, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        ax2.plot(x, y_wg_smoothed, lw=1, ls='-', color=color, alpha=0.5, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
 
 
         """Plot all expected growths"""
@@ -923,10 +871,6 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
             cold_frac = np.exp(dataf['time'] / t_grow)
             ax1.plot(x, cold_frac, lw=1, ls=':', alpha=0.5, color=color)
 
-    # add a horizontal dashed line at y=1
-    ax1.axhline(y=1, lw=0.8, ls='--', alpha=0.5, color='k', zorder=-1)
-    ax2.axhline(y=1, lw=0.8, ls='--', alpha=0.5, color='k', zorder=-1)
-    
     """Cold"""
     # y axis
     ax1.set_ylim(1/3, 3)
@@ -1091,7 +1035,7 @@ def tracer_temp_evol_plot_onepanel(figpath = '/ptmp/mpa/wuze/multiphase_turb/fig
 
     ax1.legend()
 
-    # plt.savefig(figpath, format="pdf", bbox_inches="tight")
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -1112,9 +1056,7 @@ def tracer_temp_evol_plot(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/trac
     ax2 = fig.add_subplot(gs[1], sharey=ax1)  # both survive
     ax3 = fig.add_subplot(gs[2], sharey=ax1)  # cold survive
 
-    regimes = [r'\texttt{cDwS}', r'\texttt{cSwS}', r'\texttt{cSwD}']  # text labels for each regime
-
-    for trial, vmin, ax, regime in zip(trials, vmins, [ax1, ax2, ax3], regimes):
+    for trial, vmin, ax in zip(trials, vmins, [ax1, ax2, ax3]):
         # load params
         with open(f'/freya/ptmp/mpa/wuze/multiphase_turb/saves/tracer_avg_evol_{trial}.json') as f:
             data = json.load(f)
@@ -1146,7 +1088,7 @@ def tracer_temp_evol_plot(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/trac
         # label the rcls
         rcl_title = int(trial.split('_')[-1])
         coeff, expo = s_n(rcl_title)
-        ax.text(0.5, 0.98, fr'${coeff:.0f}\times 10^{{{expo:.0f}}}\ l_{{\rm shatter}}$ ({regime})',
+        ax.text(0.5, 0.98, fr'${coeff:.0f}\times 10^{{{expo:.0f}}}\ l_{{\rm shatter}}$',
                 transform=ax.transAxes, ha='center', va='top', fontsize=lfs)
 
         """colorbars"""
@@ -1426,7 +1368,6 @@ def app_mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/app_mass_evo
     fig = plt.figure(figsize=(12.5, 3), dpi=200)
     gs = GridSpec(1, 4, width_ratios=[1, 1, 1, 1])  # split into 4 equal parts
     axs = []
-    regimes = [r'\texttt{cDwD}', r'\texttt{cDwS}', r'\texttt{cSwS}', r'\texttt{cSwD}']  # text labels for each regime
 
     # make each of the four plots    
     for i, trial in enumerate(trials):
@@ -1499,9 +1440,6 @@ def app_mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/app_mass_evo
         coeff, expo = s_n(rcl_title)
         ax.text(0.5, 1.01, fr'${coeff:.0f}\times 10^{{{expo:.0f}}}\ l_{{\rm shatter}}$',
                 transform=ax.transAxes, ha='center', va='bottom', fontsize=lfs)
-        # label with regimes
-        ax.text(0.5, 0.98, f'{regimes[i]}',
-                transform=ax.transAxes, ha='center', va='top', fontsize=lfs)
 
         axs.append(ax)
     

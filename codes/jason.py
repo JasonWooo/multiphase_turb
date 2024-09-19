@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from codes.funcs import *  # import everything in functions
 mpl.rcParams.update(mpl.rcParamsDefault)
 
 def plot_prettier(dpi=200, fontsize=10, usetex=False):

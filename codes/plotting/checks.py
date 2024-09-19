@@ -305,9 +305,9 @@ def tracer_avg_evol_load(trial = '240711_0.4_16000', nbins_temp = 'auto', ncores
 
     # modify the save
     if this_core == all_core and all_core == 1:
-        fsavename = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/tracer_avg_evol_{trial}.json'
+        fsavename = f'/freya/ptmp/mpa/wuze/multiphase_turb/saves/tracer_avg_evol_{trial}.json'
     else:
-        fsavename = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/tracer_avg_evol_{trial}_{this_core}.json'
+        fsavename = f'/freya/ptmp/mpa/wuze/multiphase_turb/saves/tracer_avg_evol_{trial}_{this_core}.json'
 
     import json
     with open(fsavename, 'w') as f:

@@ -22,7 +22,7 @@ cd /ptmp/mpa/wuze/multiphase_turb/codes/processing
 # set number of OMP threads *per process*
 export OMP_NUM_THREADS=1
 
-srun python tracer_avg_evol_run.py '240716_0.8_4000' $SLURM_CPUS_PER_TASK
+srun python tracer_avg_evol_run.py '240716_0.6_6.4' $SLURM_CPUS_PER_TASK
 
 echo "Elapsed: $(($SECONDS / 3600))hrs $((($SECONDS / 60) % 60))min $(($SECONDS % 60))sec"
 
