@@ -227,8 +227,10 @@ sys.path.append(os.path.abspath('/freya/ptmp/mpa/wuze/multiphase_turb/athena_pp/
 from athena_read import athdf  # import the athena I/O function
 import h5py
 
-trial = '240613_0.1_10'  # rp.trial
+# as placeholders!
+trial = 'TEST_TRIAL'  # rp.trial
 datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+
 
 def get_rp(trial = trial):
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
@@ -299,16 +301,16 @@ def get_datamds(fname=f'{datapath}/cloud/Turb.out2.00101.athdf',
 # finds the index of the first element in seq LARGER than val
 def find_ind_l(seq, val):
     seq = list(seq)
-    return seq.index(list(filter(lambda x: x>val, seq))[0])
+    return seq.index(list(filter(lambda x: x >= val, seq))[0])
 
 # finds the index of the first element in seq SMALLER than val
 def find_ind_s(seq, val):
     seq = list(seq)
-    return seq.index(list(filter(lambda x: x < val, seq))[0])
+    return seq.index(list(filter(lambda x: x <= val, seq))[0])
 
 
 # the binary search function for pressure condition checks
-def press_binary_search(arr, condition):
+def press_binary_search(datapath, arr, condition):
     # initialize the indices
     low = 0
     high = len(arr) - 1

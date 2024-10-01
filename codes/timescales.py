@@ -508,7 +508,7 @@ def add_point(trial = '240613_0.1_10', verbose = True):
     vel_frac = rp['cloud_radius'] / l_shatter_min
 
     if verbose:
-        print(f'X-value = {rp['mach']}')
+        print(f"X-value = {rp['mach']}")
         print(f'Y-value [log] = {np.log10(vel_frac):.3f}')
         print(f'Y-value = {vel_frac:.3f}')
     return rp, rp['mach'], vel_frac, t_cool_mix, t_cool_min, [t_cool_func, T_tcoolmin, T_mix]
@@ -574,6 +574,8 @@ def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 16
     crit_num_cells = rp['grid_dim']**3
     # criteria based on percentage of mass
     crit_cell_mass = hst_data['rho_sum'][1] * ((rp['box_size']/rp['grid_dim']) ** 3)
+    # null index for the last snapshot
+    null_ind = len(hst_data['time']) - 1
 
     """
     Pressure conditions
@@ -581,8 +583,11 @@ def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 16
     """
     
     # get pressure from binary search
-    stop_time_press = press_binary_search(arr=np.sort(athdf_fnames), condition=press_condition)
-    stop_ind_press = find_ind_l(hst_data['time'], stop_time_press)
+    stop_time_press = press_binary_search(datapath=datapath, arr=np.sort(athdf_fnames), condition=press_condition)
+    if stop_time_press < hst_data['time'][-1]:
+        stop_ind_press = find_ind_l(hst_data['time'], stop_time_press)
+    else:
+        stop_ind_press = null_ind
 
     """
     Mass conditions
@@ -591,10 +596,22 @@ def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 16
     """
 
     # update stop_time with mass criteria
+    hot_gas_mass = crit_cell_mass - hst_data['cold_gas'] - hst_data['warm_gas']
+
     crit_mass_hot = crit_cell_mass * (perc_mass_hot/100)
     crit_mass_cold = crit_cell_mass * (perc_mass_cold/100)
-    stop_ind_mass_hot = find_ind_s(hst_data['hot_gas'], crit_mass_hot)  # find where hot gas mass drops below critical
-    stop_ind_mass_cold = find_ind_s(hst_data['cold_gas'], crit_mass_cold)  # find where cold gas mass drops below critical
+    
+    # find where hot gas mass drops below critical
+    if crit_mass_hot > hot_gas_mass[-1]: # if reached
+        stop_ind_mass_hot = find_ind_s(hot_gas_mass, crit_mass_hot)
+    else:
+        stop_ind_mass_hot = null_ind
+
+    # find where cold gas mass drops below critical
+    if crit_mass_cold > hst_data['cold_gas'][-1]: # if reached
+        stop_ind_mass_cold = find_ind_s(hst_data['cold_gas'], crit_mass_cold)
+    else:
+        stop_ind_mass_cold = null_ind
 
     # use the smallest of the three
     print(stop_ind_press, stop_ind_mass_hot, stop_ind_mass_cold)
