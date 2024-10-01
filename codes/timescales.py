@@ -540,7 +540,8 @@ def plot_point_bw(trial = '240613_0.1_10', verbose = True):
     plt.show()
 
 # returns cutoff time for a run
-def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 1600, hst_data = None):
+def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 1600, hst_data = None,
+                  perc_cell_press = 0.5, perc_mass_hot = 20, perc_mass_cold = 5):  # criteria in percentage
     """
     Returns the stop time of a trial
 
@@ -552,34 +553,6 @@ def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 16
         The run is probably done with "turb_stop" already
         The last time in the hst file will be returned
     """
-    def press_binary_search(arr, condition):
-        # initialize the indices
-        low = 0
-        high = len(arr) - 1
-
-        # the final index
-        final_ind = -1  # If condition is never met, return -1
-        counter = 0
-        
-        while low <= high:
-            mid = (low + high) // 2
-            print(f'{counter:<5}: fnum {mid} / {len(arr)}')  # print the middle index
-            
-            if condition(arr[mid]):  # if the condition is met
-                final_ind = mid  # update final_ind
-                high = mid - 1  # GO LEFT
-            else:
-                low = mid + 1  # GO RIGHT
-            counter += 1
-
-        # get the final time
-        if final_ind == -1:
-            # return the last entry
-            final_athdf_fname = arr[-1]
-        else:
-            final_athdf_fname = arr[final_ind]
-        stop_time = get_datamd(fname=f'{datapath}/cloud/{final_athdf_fname}', verbose=False, key='Time')
-        return stop_time
     
     def press_condition(athdf_fname):
         """Takes in file name"""
@@ -587,7 +560,7 @@ def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 16
         press = get_datamd(fname=fname, key='press', verbose=False)
         
         # condition
-        crit = np.sum(press < 2 * pfloor) >= crit_press_cells  # pressure condition
+        crit = np.sum(press < 2 * pfloor) >= (perc_cell_press/100 * crit_num_cells)  # pressure condition
         return crit
     
     # grab all athdf files
@@ -596,26 +569,38 @@ def get_stop_time(trial = '240613_0.1_10', rp = None, pfloor = 1e-9, T_cold = 16
 
     # grab the total mass of the first snapshot after init
     print('Retrieving box conditions...')
-    
-    # criteria based on total number of cells
-    crit_press_cells = (0.5/100) * rp['grid_dim']**3  # CANNOT be over 0.5% number of CELLS
-    crit_temp_mass = (50/100) * hst_data['rho_sum'][1] * ((rp['box_size']/rp['grid_dim']) ** 3) # CANNOT be over 50% MASS
 
+    # criteria based on total number of cells
+    crit_num_cells = rp['grid_dim']**3
+    # criteria based on percentage of mass
+    crit_cell_mass = hst_data['rho_sum'][1] * ((rp['box_size']/rp['grid_dim']) ** 3)
+
+    """
+    Pressure conditions
+    >= 0.5% of cells have pressure < 2 * pfloor
+    """
+    
     # get pressure from binary search
-    stop_time = press_binary_search(arr=np.sort(athdf_fnames), condition=press_condition)
+    stop_time_press = press_binary_search(arr=np.sort(athdf_fnames), condition=press_condition)
+    stop_ind_press = find_ind_l(hst_data['time'], stop_time_press)
+
+    """
+    Mass conditions
+    Hot gas mass < 20%
+    Cold gas mass < 5%
+    """
 
     # update stop_time with mass criteria
-    stop_time_mass = hst_data['time'][find_ind_l(hst_data['cold_gas'], crit_temp_mass)]  # find where cold gas mass exceeds critical
-    print(stop_time_mass, stop_time)
-    if stop_time_mass < stop_time:
-        stop_time = stop_time_mass
-        print('REPLACED stop_time with mass criteria at earlier index')
-    
-    # find the corresponding index
-    if stop_time >= hst_data['time'][-2]:
-        stop_ind = len(hst_data['time'])
-    else:
-        stop_ind = find_ind_l(hst_data['time'], stop_time)
+    crit_mass_hot = crit_cell_mass * (perc_mass_hot/100)
+    crit_mass_cold = crit_cell_mass * (perc_mass_cold/100)
+    stop_ind_mass_hot = find_ind_s(hst_data['hot_gas'], crit_mass_hot)  # find where hot gas mass drops below critical
+    stop_ind_mass_cold = find_ind_s(hst_data['cold_gas'], crit_mass_cold)  # find where cold gas mass drops below critical
+
+    # use the smallest of the three
+    print(stop_ind_press, stop_ind_mass_hot, stop_ind_mass_cold)
+    stop_ind = np.min([stop_ind_press, stop_ind_mass_hot, stop_ind_mass_cold])
+    stop_time = hst_data['time'][stop_ind]
+
     return stop_time, stop_ind
 
 # returns color information for a run
@@ -623,20 +608,7 @@ def add_color(rp = None, trial = '240613_0.1_10', verbose = True,
               cg_st_epoch = 0, return_cropped = True):
     # grab the hst file data
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
-    # try
-    try:
-        fname = f'{datapath}/turb/Turb.hst'
-        with open(fname, 'r') as file: keys_raw = file.readlines()[1]
-        keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
-    except:
-        fname = f'{datapath}/cloud/Turb.hst'
-        with open(fname, 'r') as file: keys_raw = file.readlines()[1]
-        keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
-    
-    
-    fname = f'{datapath}/cloud/Turb.hst'
-    data = np.loadtxt(fname).T
-    dataf = {keys[i]: data[i] for i in range(len(keys))}
+    dataf = get_hst(trial = trial)
 
     # mass fractions
     cold_frac_all = dataf['cold_gas'] / dataf['cold_gas'][cg_st_epoch]  # cold gas fraction
@@ -845,8 +817,8 @@ def save_params(trial, trial_x_val, trial_y_val, rp, l_shatter_min, log_cold_fra
     
     # save trial in csv
     print(trial)
-    if trial in list(df['trial']):  # if exists
-        trial_ind = df.index[df['trial'] == trial][0]
+    if trial_df in list(df['trial']):  # if exists
+        trial_ind = df.index[df['trial'] == trial_df][0]
         for col, val in params_dict.items():
             df.at[trial_ind, col] = val
     else:  # if no row with trial name, make one

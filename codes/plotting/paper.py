@@ -832,7 +832,6 @@ def mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol.pdf',
     plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
-
 def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_both.pdf',
                     csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e3.csv',
                     mach = 0.4, plot_growth = 0,
@@ -841,6 +840,20 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     """
     Plots evolution of both COLD AND WARM
     Plots ALL runs for a single Mach number
+
+    The mass evolutions are cropped for cold gas based on the following criteria,
+    dictated by the 'stop_time' column in the .csv,
+    which is decided by get_stop_time() in timescales.py
+
+    Warm gas is plotted the whole way
+        ○ Hot gas mass lower than
+			§ 0.5
+			§ 0.2 if necessary
+		○ Cold gas mass lower than
+			§ 5%
+		○ Pressure floor
+			§ Old runs
+
 
     Corresponds to Figure 6 in the paper
     -----
@@ -884,22 +897,35 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
         cg = dataf['cold_gas']
         wg = dataf['warm_gas']
         cg_st_epoch = (cg != 0).argmax()
+        # grab the stop time
+        stop_time = row['stop_time']
+        stop_ind = int(np.ceil(stop_time * rp['t_cc'] / (rp['dt_hdf5'] / 100)))  # find the index to stop
     
+        # x-axis: time
         rp = get_rp(trial=row['trial'])
         x = dataf['time'] / rp['t_cc']
+        x_stop = x[:stop_ind]
 
-        y_cg = cg / cg[cg_st_epoch]
+        # y-axis: mass evolution
+        # stop and normalize
+        y_cg = cg[:stop_ind] / cg[cg_st_epoch]
         y_wg = wg / cg[cg_st_epoch]
+        
         # smoothen the lines
         from scipy.ndimage.filters import gaussian_filter1d
         y_cg_smoothed = gaussian_filter1d(y_cg, sigma=10)
         y_wg_smoothed = gaussian_filter1d(y_wg, sigma=10)
 
+        # get color
         color = cm(plt.Normalize(0, 8)(np.log10(row["yval"])))
 
         # get the normalized cloud size
         coeff, expo = s_n(row["yval"])
-        ax1.plot(x, y_cg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        """cold, stopped"""
+        ax1.plot(x_stop, y_cg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        # add a cross at the end
+        ax1.scatter(x_stop[-1], y_cg_smoothed[-1], marker='x', s=20, c=color, alpha=0.5)
+        """warm, does not stop"""
         ax2.plot(x, y_wg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
 
 
@@ -970,7 +996,6 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     plt.subplots_adjust(hspace=0)
     plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
-
 
 """
 Figure 6
@@ -1303,7 +1328,7 @@ This version is vertical instead of horizontal
 """
 def params_tcc_tchar_fit(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_tcc_tchar_fit.pdf',
                          pickle_path = f'/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e2_new_timescales.pkl',
-                         log_ylimu = 9, ms = 30, plot_ana = False, show_text = True, lfs = 14,
+                         log_ylimu = 9, ms = 30, plot_ana = False, show_text = True, lfs = 14, tfs = 6,
                          cm_cold = None, cm_warm = None):
     # load the trials
     from matplotlib.gridspec import GridSpec
@@ -1358,9 +1383,9 @@ def params_tcc_tchar_fit(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/param
 
             if show_text:
                 if j:  # for warm
-                    ax.text(x + 0.3 * np.sqrt(pt_size)/ms, y, col, fontsize=6, ha='center', va='center', path_effects=[pe.withStroke(linewidth=0.5, foreground="white")])
+                    ax.text(x + 0.3 * np.sqrt(pt_size)/ms, y, col, fontsize=tfs, ha='center', va='center', path_effects=[pe.withStroke(linewidth=0.5, foreground="white")])
                 else:  # for cold
-                    ax.text(x - 0.3 * np.sqrt(pt_size)/ms, y, col, fontsize=6, ha='center', va='center', path_effects=[pe.withStroke(linewidth=0.5, foreground="white")])
+                    ax.text(x - 0.3 * np.sqrt(pt_size)/ms, y, col, fontsize=tfs, ha='center', va='center', path_effects=[pe.withStroke(linewidth=0.5, foreground="white")])
 
     
     # y axis label for t_cc / t_cool
@@ -1481,7 +1506,7 @@ def app_mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/app_mass_evo
         minor_locator = FixedLocator(np.arange(0, 2, 0.2))
         ax.xaxis.set_minor_locator(minor_locator)
 
-        ax.set_yticks(np.arange(0, 1, 5) if i == 0 else [])
+        ax.set_yticks(np.linspace(0, 1, 5) if i == 0 else [], labels=[0, 0.25, 0.5, 0.75, 1] if i == 0 else [])
 
 
         # make a secondary axis on snapshots

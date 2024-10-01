@@ -16,6 +16,7 @@ from codes.funcs import *  # import everything in functions
 from codes.timescales import *
 mpl.rcParams.update(mpl.rcParamsDefault)
 from codes.jason import plotting_def, plot_prettier
+import cmasher as cmr
 plotting_def()
 
 
@@ -184,12 +185,13 @@ def plot_evol_both_trial(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/sa
 Growth rates
 """
 
-def plot_evol_all_both(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv', mach = 0.3, plot_wg = True):
+def plot_evol_all_both(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/saves/cloud_8e3.csv', mach = 0.3, plot_wg = True, xlim_min = True):
     """
     Plots evolution of WARM & COLD in separate panels
     Plots ALL runs for a single Mach number
     -----
     mach: only plot the points for a certain mach number
+    xlim_min: limit x axis (time) to the minimum of all simulations
     """
     from matplotlib.collections import LineCollection
     import pandas as pd
@@ -201,7 +203,7 @@ def plot_evol_all_both(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
     fig, ax1 = plt.subplots(figsize=(5,3))
     if plot_wg:
         fig, ax2 = plt.subplots(figsize=(5,3))
-    cm = cmr.get_sub_cmap('cmr.iceburn', .1, .9)  # colormap for the gas fractions
+    cm = cmr.get_sub_cmap('cmr.guppy', 0, 1)#cmr.get_sub_cmap('cmr.iceburn', .1, .9)  # colormap for the gas fractions
 
     x_lims = []
     
@@ -248,22 +250,22 @@ def plot_evol_all_both(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/save
     
     # x axis
     # plot to 1/3 of the box mass, whichever trial has the minimum
-    ax1.set_xlim(0, np.min(x_lims))
+    ax1.set_xlim(0, np.min(x_lims) if xlim_min else np.max(x_lims))
     ax1.set_xlabel(r"Time $t / t_{\rm eddy}$")
     
     # ax1.text(0.5, 2e0, fr'$T_{{\rm cold}} = {T_cold:.0f}$', ha='center')
     # ax1.legend(loc='lower right', bbox_to_anchor=(1.8,0.1), fontsize=10, alignment='center')
-    sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 3))
+    sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 8))
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax1)
-    cbar.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', rotation=90, labelpad=10)
+    cbar.ax.set_ylabel(r'$\log_{10} \frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=90, labelpad=10)
     # plt.title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: $128^3$')
 
     if plot_wg:
         ax2.set_ylim(1e-3, 1e1)
         ax2.set_yscale('log')
         ax2.set_ylabel(r'$M_{\rm warm} / M_{\rm cold, ini}$')
-        ax2.set_xlim(0, np.min(x_lims))
+        ax2.set_xlim(0, np.min(x_lims) if xlim_min else np.max(x_lims))
         ax2.set_xlabel(r"Time $t / t_{\rm eddy}$")
         # ax2.legend(loc='lower right', bbox_to_anchor=(1.3,0.1), fontsize=10, alignment='center')
         sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 3))
@@ -471,7 +473,7 @@ def plot_evol_all_ratio(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/data/sav
     sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 3))
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax1)
-    cbar.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', rotation=90, labelpad=10)
+    cbar.ax.set_ylabel(r'$\log_{10} \frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=90, labelpad=10)
     plt.title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: $128^3$')
 
     if plot_wg:
@@ -502,8 +504,12 @@ def growth_rate_calc(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud
     
     # for each box
     for _, row in df.iterrows():
+        """Select trials with mach and growth"""
+        # mach
         if (row['x_mach'] < mach - 0.05) or (row['x_mach'] > mach + 0.05):  # if not within range
             continue
+        # growth
+        print(f'cold {row['log_cold_mass']:<10.3f} warm {row['log_warm_mass']:<10.3f}')
         datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{row['trial']}'
         
         """Load history file"""

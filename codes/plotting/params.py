@@ -11,7 +11,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 import matplotlib as mpl
 from codes.funcs import *  # import everything in functions
+from codes.timescales import *  # import everything in functions
 mpl.rcParams.update(mpl.rcParamsDefault)
+from matplotlib.markers import MarkerStyle
 from codes.jason import plotting_def, plot_prettier
 plotting_def()
 

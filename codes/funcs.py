@@ -237,6 +237,26 @@ def get_rp(trial = trial):
     return rp
 
 
+def get_hst(trial = trial):
+    # grab the hst file
+    # accomodate for both the old and new convention
+    datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+    # try
+    try:
+        fname = f'{datapath}/turb/Turb.hst'
+        with open(fname, 'r') as file: keys_raw = file.readlines()[1]
+        keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
+    except:
+        fname = f'{datapath}/cloud/Turb.hst'
+        with open(fname, 'r') as file: keys_raw = file.readlines()[1]
+        keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
+    
+    fname = f'{datapath}/cloud/Turb.hst'
+    data = np.loadtxt(fname).T
+    dataf = {keys[i]: data[i] for i in range(len(keys))}
+    
+    return dataf
+
 def get_datamd(fname=f'{datapath}/cloud/Turb.out2.00101.athdf',
                key='rho', verbose=False):
     """
@@ -276,6 +296,43 @@ def get_datamds(fname=f'{datapath}/cloud/Turb.out2.00101.athdf',
     return vals
 
 
+# finds the index of the first element in seq LARGER than val
 def find_ind_l(seq, val):
     seq = list(seq)
     return seq.index(list(filter(lambda x: x>val, seq))[0])
+
+# finds the index of the first element in seq SMALLER than val
+def find_ind_s(seq, val):
+    seq = list(seq)
+    return seq.index(list(filter(lambda x: x < val, seq))[0])
+
+
+# the binary search function for pressure condition checks
+def press_binary_search(arr, condition):
+    # initialize the indices
+    low = 0
+    high = len(arr) - 1
+
+    # the final index
+    final_ind = -1  # If condition is never met, return -1
+    counter = 0
+    
+    while low <= high:
+        mid = (low + high) // 2
+        print(f'{counter:<5}: fnum {mid} / {len(arr)}')  # print the middle index
+        
+        if condition(arr[mid]):  # if the condition is met
+            final_ind = mid  # update final_ind
+            high = mid - 1  # GO LEFT
+        else:
+            low = mid + 1  # GO RIGHT
+        counter += 1
+
+    # get the final time
+    if final_ind == -1:
+        # return the last entry
+        final_athdf_fname = arr[-1]
+    else:
+        final_athdf_fname = arr[final_ind]
+    stop_time = get_datamd(fname=f'{datapath}/cloud/{final_athdf_fname}', verbose=False, key='Time')
+    return stop_time
