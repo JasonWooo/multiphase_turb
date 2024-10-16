@@ -576,3 +576,90 @@ def growth_rate_calc(csvpath = '/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud
         print(row['trial'])
         print(f"{'cold, run:':<20} {tgrow_cold_run:<20.3f} {'cold, calc:':<20} {tgrow_cold_calc:<10.3f}")
         print(f"{'warm, run:':<20} {tgrow_warm_run:<20.3f} {'warm, calc:':<20} {tgrow_warm_calc:<10.3f}\n")  #{' ' * 20} 
+
+
+"""
+Growth rate comparison for each trial
+With calculated and fitted values
+From the stopped mass evolution based on mass & pressure criteria
+"""
+def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e2_new.csv', alpha=0.5):
+    # grab the df
+    import pandas as pd
+    from scipy.ndimage.filters import gaussian_filter1d
+    df = pd.read_csv(csvpath, comment='#')
+    df['yval'] = df["r_cl"] / df["l_shat"]
+    df.sort_values(by='yval', inplace=True)
+
+    
+    # for each trial in the csv, grab tgrow values
+    cg_run_list = []
+    cg_calc_list = []
+    wg_run_list = []
+    wg_calc_list = []
+
+    # def calc_tgrow(rp, T):
+    #     """
+    #     Calculate the growth time given trial params and temperature of interest (cold/warm)
+    #     """
+    #     tgrow = rp['chi'] ** (5/4)
+    #     tgrow *= rp['mach'] ** (-1/2)
+    #     tgrow *= calc_cs(T) ** (-1/2)
+    #     tgrow *= (rp['cloud_radius'] / rp['box_size']) ** (-1/6)
+    #     tgrow *= (rp['cloud_radius'] * 0.0001217175017901) ** (1/2)
+    #     return tgrow
+
+    def calc_tgrow(rp, T):
+        """
+        Calculate the growth time given trial params and temperature of interest (cold/warm)
+        """
+        tgrow = 0.5 * (rp['T_hot'] / T) # chi
+        tgrow *= (0.0001217175017901 * rp['t_cc']) ** (1/2)  # t_cool_peak
+        tgrow *= (rp['box_size'] / rp['cloud_radius']) ** (1/6)
+        return tgrow
+
+    for _, row in tqdm(df.iterrows()):
+        trial = row['trial']
+        datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
+        rp = get_rp(trial=trial)
+        dataf = get_hst(trial=trial)
+        
+        """Fitted values"""
+        # grab the mass evolution
+        x_stop, y_cg, y_wg, x_nostop = get_stopped_mass_evol(trial=trial, stop_time=row['stop_time'])
+        # smoothen the lines
+        cg_sm = gaussian_filter1d(y_cg, sigma=10)[-100:]
+        wg_sm = gaussian_filter1d(y_wg, sigma=10)[-100:]
+        # the x and y values
+        time = x_stop[-100:]
+        cg_linfit = np.log(cg_sm / cg_sm[0])
+        wg_linfit = np.log(wg_sm / wg_sm[0])
+        # run growths
+        tgrow_cg_run = 1 / np.polyfit(time, cg_linfit, deg=1, full=False)[0]  # slope of the fit
+        tgrow_wg_run = 1 / np.polyfit(time, wg_linfit, deg=1, full=False)[0]
+        cg_run_list.append(tgrow_cg_run)
+        wg_run_list.append(tgrow_wg_run)
+
+        """Calculated growths"""
+        # growth time for cold
+        # tgrow_cg_calc = alpha * rp['chi'] *\
+        # (rp['mach'] ** (-1/2)) *\
+        # (row['yval'] ** (1/2)) *\
+        # ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
+        # 0.0001217175017901#row['t_cool_min']
+
+        tgrow_cg_calc = calc_tgrow(rp, 800)
+
+        # for warm
+        # tgrow_wg_calc = alpha * (rp['chi'] / 10) *\
+        # (rp['mach'] ** (-1/2)) *\
+        # (row['yval'] ** (1/2)) *\
+        # ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
+        # 0.0001217175017901#row['t_cool_min']
+
+        tgrow_wg_calc = calc_tgrow(rp, 8000)
+
+        cg_calc_list.append(tgrow_cg_calc)
+        wg_calc_list.append(tgrow_wg_calc)
+
+    return df, np.array(cg_run_list), np.array(wg_run_list), np.array(cg_calc_list), np.array(wg_calc_list)

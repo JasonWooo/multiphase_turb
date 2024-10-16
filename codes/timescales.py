@@ -766,6 +766,36 @@ def add_color_time(rp = None, trial = '240613_0.1_10', verbose = True,
 
     return np.log10(cg_mass_cropped[:hot_fill_ind] / cg_mass_cropped[cg_st_epoch]), np.log10(wg_mass_cropped[:hot_fill_ind] / cg_mass_cropped[cg_st_epoch]), time_cropped[:stop_ind][:hot_fill_ind] / rp['t_cc']
 
+
+"""
+Retrieve the STOPPED time and mass evolution for a certain trial
+"""
+
+def get_stopped_mass_evol(trial = '240613_0.1_10', stop_time = 1):
+    """Load files"""
+    rp = get_rp(trial=trial)
+    dataf = get_hst(trial=trial)
+    
+    """Load masses"""
+    # gas masses
+    cg = dataf['cold_gas']
+    wg = dataf['warm_gas']
+    cg_st_epoch = (cg != 0).argmax()
+    # grab the stop time
+    stop_ind = int(np.ceil(stop_time * rp['t_cc'] / (rp['dt_hdf5'] / 100)))  # find the index to stop
+
+    # x-axis: time
+    x = dataf['time'] / rp['t_cc']
+    x_stop = x[:stop_ind]
+
+    # y-axis: mass evolution
+    # stop and normalize
+    y_cg = cg[:stop_ind] / cg[cg_st_epoch]
+    y_wg = wg[:stop_ind] / cg[cg_st_epoch]
+
+    return x_stop, y_cg, y_wg, x
+
+
 # retrieve point with color
 def plot_point_color(trial = '240613_0.1_10', cg_st_epoch = 0, verbose = False, return_cropped = True):
     rp, x, y, t_cool_mix, t_cool_min, _ = add_point(trial=trial, verbose=verbose)

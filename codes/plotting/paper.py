@@ -734,7 +734,6 @@ def mass_evol(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol.pdf',
     df = pd.read_csv(csvpath, comment='#')
     df['yval'] = df["r_cl"] / df["l_shat"]
     df.sort_values(by='yval', inplace=True)
-    xys, cs = [], []
     
     fig, ax = plt.subplots(dpi=200, figsize=(5,3))
     
@@ -858,13 +857,13 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     Corresponds to Figure 6 in the paper
     -----
     mach: only plot the points for a certain mach number
+    plot_growth: plot the expected growth rates from two-phase simulations (-1 = highest, 0 = no plot)
     """
     from matplotlib.collections import LineCollection
     import pandas as pd
     df = pd.read_csv(csvpath, comment='#')
     df['yval'] = df["r_cl"] / df["l_shat"]
     df.sort_values(by='yval', inplace=True)
-    xys, cs = [], []
     
     # plots
     fig = plt.figure(figsize=(4, 5), dpi=200)
@@ -872,44 +871,17 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     ax1 = fig.add_subplot(gs[0])  # cold
     ax2 = fig.add_subplot(gs[1], sharex=ax1)  # warm
     
+    xstop_list = []
     for _, row in tqdm(df.iterrows()):
         if (row['x_mach'] < mach - 0.05) or (row['x_mach'] > mach + 0.05):  # if not within range
             continue
-        datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{row['trial']}'
+        trial = row['trial']
+        datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
         
-        """Load history file"""
-        # try
-        try:
-            fname = f'{datapath}/turb/Turb.hst'
-            with open(fname, 'r') as file: keys_raw = file.readlines()[1]
-            keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
-        except:
-            fname = f'{datapath}/cloud/Turb.hst'
-            with open(fname, 'r') as file: keys_raw = file.readlines()[1]
-            keys = [a.split('=')[1] for a in keys_raw.split()[1:]]
-        
-        fname = f'{datapath}/cloud/Turb.hst'
-        data = np.loadtxt(fname).T
-        dataf = {keys[i]: data[i] for i in range(len(keys))}
-        
-        """Load masses"""
-        # gas masses
-        cg = dataf['cold_gas']
-        wg = dataf['warm_gas']
-        cg_st_epoch = (cg != 0).argmax()
-        # grab the stop time
-        stop_time = row['stop_time']
-        stop_ind = int(np.ceil(stop_time * rp['t_cc'] / (rp['dt_hdf5'] / 100)))  # find the index to stop
-    
-        # x-axis: time
-        rp = get_rp(trial=row['trial'])
-        x = dataf['time'] / rp['t_cc']
-        x_stop = x[:stop_ind]
-
-        # y-axis: mass evolution
-        # stop and normalize
-        y_cg = cg[:stop_ind] / cg[cg_st_epoch]
-        y_wg = wg / cg[cg_st_epoch]
+        # get mass evol history
+        rp = get_rp(trial=trial)
+        dataf = get_hst(trial=trial)
+        x_stop, y_cg, y_wg, x_nostop = get_stopped_mass_evol(trial=trial, stop_time=row['stop_time'])
         
         # smoothen the lines
         from scipy.ndimage.filters import gaussian_filter1d
@@ -922,11 +894,13 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
         # get the normalized cloud size
         coeff, expo = s_n(row["yval"])
         """cold, stopped"""
+        xstop_list.append(x_stop[-1])
         ax1.plot(x_stop, y_cg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
-        # add a cross at the end
-        ax1.scatter(x_stop[-1], y_cg_smoothed[-1], marker='x', s=20, c=color, alpha=0.5)
-        """warm, does not stop"""
-        ax2.plot(x, y_wg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        ax1.scatter(x_stop[-1], y_cg_smoothed[-1], marker='x', s=8, linewidths=1, color=color, alpha=0.5)  # add a cross at the end
+        
+        """warm, stopped"""
+        ax2.plot(x_stop, y_wg_smoothed, lw=1, ls='-', color=color, alpha=0.5, zorder=1, label=fr'${coeff:.0f}\times 10^{{{expo:.0f}}}$')  #R/l_{{\rm shatter}} = 
+        ax2.scatter(x_stop[-1], y_wg_smoothed[-1], marker='x', s=8, linewidths=1, color=color, alpha=0.5)  # add a cross at the end
 
 
         """Plot all expected growths"""
@@ -945,9 +919,8 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     
             # use actual time, plot eddie time
             print(alpha, rp['chi'], rp['mach'], row['yval'], rp['box_size'] / rp['cloud_radius'])
-            print(t_grow, rp['t_cc'], t_cool_min)
-            cold_frac = np.exp(dataf['time'] / t_grow)
-            ax1.plot(x, cold_frac, lw=1, ls=':', alpha=0.5, color=color)
+            cold_frac = np.exp(x_stop * rp['t_cc'] / t_grow)
+            ax1.plot(x_stop, cold_frac, lw=1, ls=':', alpha=0.5, color=color)
 
     # add a horizontal dashed line at y=1
     ax1.axhline(y=1, lw=0.8, ls='--', alpha=0.5, color='k', zorder=-1)
@@ -955,18 +928,17 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     
     """Cold"""
     # y axis
-    ax1.set_ylim(1/3, 3)
-    # yticks = np.logspace(np.log10(1/5), np.log10(5), 10)
-    # ax1.set_yticks(yticks)
-    # ax1.set_yticklabels(yticks)
     ax1.set_yscale('log')
+    ax1.set_ylim(1/7, 7)
+    yticks = [1/5, 1, 5]
+    ax1.set_yticks(yticks, labels=['1/5', 1, 5])
     ax1.set_ylabel(r'$M_{\rm cold} / M_{\rm cold, ini}$', fontsize=lfs)
     ax1.tick_params(axis='x',
                     which='both',
                     labelbottom=False)
-    
     # x axis
-    ax1.set_xlim(0, 1.5)
+    largest_xstop = np.max(xstop_list)
+    ax1.set_xlim(0, largest_xstop+0.05)
     # ax1.set_xlabel(r"Time $t / t_{\rm cc}$")
     
     if plot_legend:
@@ -981,7 +953,7 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     ax2.set_yscale('log')
     ax2.set_ylabel(r'$M_{\rm warm} / M_{\rm cold, ini}$', fontsize=lfs)
     ax2.set_xlabel(r"time $[t_{\rm cc}]$", fontsize=lfs)
-    ax2.set_xticks(np.arange(0, 2, 0.5), np.arange(0, 2, 0.5))
+    # ax2.set_xticks(np.arange(0, 2, 0.5), np.arange(0, 2, 0.5))
     
     # add colorbar
     sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 8))
