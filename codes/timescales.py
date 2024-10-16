@@ -769,8 +769,10 @@ def add_color_time(rp = None, trial = '240613_0.1_10', verbose = True,
 
 """
 Retrieve the STOPPED time and mass evolution for a certain trial
+x_stop      time in t_cc of the trial, cut off at the stop index in .csv
+y_cg, y_wg  cold and warm gas mass, corresponding to x_stop
+x           raw time from hst time
 """
-
 def get_stopped_mass_evol(trial = '240613_0.1_10', stop_time = 1):
     """Load files"""
     rp = get_rp(trial=trial)
@@ -785,7 +787,7 @@ def get_stopped_mass_evol(trial = '240613_0.1_10', stop_time = 1):
     stop_ind = int(np.ceil(stop_time * rp['t_cc'] / (rp['dt_hdf5'] / 100)))  # find the index to stop
 
     # x-axis: time
-    x = dataf['time'] / rp['t_cc']
+    x = dataf['time'] / rp['t_cc']  # DIVIDED BY T_CC ALREADY
     x_stop = x[:stop_ind]
 
     # y-axis: mass evolution

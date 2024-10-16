@@ -591,11 +591,12 @@ def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8
     df['yval'] = df["r_cl"] / df["l_shat"]
     df.sort_values(by='yval', inplace=True)
 
-    
     # for each trial in the csv, grab tgrow values
-    cg_run_list = []
+    trial_list = []
+    cg_run_list = []; cg_err_list = []
     cg_calc_list = []
-    wg_run_list = []
+    
+    wg_run_list = []; wg_err_list = []
     wg_calc_list = []
 
     # def calc_tgrow(rp, T):
@@ -609,14 +610,14 @@ def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8
     #     tgrow *= (rp['cloud_radius'] * 0.0001217175017901) ** (1/2)
     #     return tgrow
 
-    def calc_tgrow(rp, T):
+    def calc_tgrow(rp, row_props, T):
         """
         Calculate the growth time given trial params and temperature of interest (cold/warm)
         """
         tgrow = 0.5 * (rp['T_hot'] / T) # chi
-        tgrow *= (0.0001217175017901 * rp['t_cc']) ** (1/2)  # t_cool_peak
+        tgrow *= (row_props['t_cool_min'] * rp['t_cc']) ** (1/2)  # should be t_cool_min
         tgrow *= (rp['box_size'] / rp['cloud_radius']) ** (1/6)
-        return tgrow
+        return tgrow  # calculated
 
     for _, row in tqdm(df.iterrows()):
         trial = row['trial']
@@ -625,41 +626,56 @@ def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8
         dataf = get_hst(trial=trial)
         
         """Fitted values"""
-        # grab the mass evolution
+        # grab the mass evolution, from timescales.py
+        if row['stop_time'] < 0.3:  # skip rows that are stopped too soon
+            continue
         x_stop, y_cg, y_wg, x_nostop = get_stopped_mass_evol(trial=trial, stop_time=row['stop_time'])
-        # smoothen the lines
-        cg_sm = gaussian_filter1d(y_cg, sigma=10)[-100:]
-        wg_sm = gaussian_filter1d(y_wg, sigma=10)[-100:]
-        # the x and y values
-        time = x_stop[-100:]
-        cg_linfit = np.log(cg_sm / cg_sm[0])
-        wg_linfit = np.log(wg_sm / wg_sm[0])
-        # run growths
-        tgrow_cg_run = 1 / np.polyfit(time, cg_linfit, deg=1, full=False)[0]  # slope of the fit
-        tgrow_wg_run = 1 / np.polyfit(time, wg_linfit, deg=1, full=False)[0]
-        cg_run_list.append(tgrow_cg_run)
+        # this the the entire MEH, so we ignore the first 0.25 t_cc, and take the first & second half of the MEH
+
+        # dt for hst file
+        # index corresponding to 0.25 t_cc
+        ind_tcc25 = find_ind_l(x_stop, 0.25)
+        
+        
+        # iterate through the split MEHs
+        tgrow_cg_run = []; tgrow_wg_run = []; err_cg = []; err_wg = []
+        for x_sp, y_cg_sp, y_wg_sp in zip(np.array_split(x_stop[ind_tcc25:], 2),
+                                          np.array_split(y_cg[ind_tcc25:], 2),
+                                          np.array_split(y_wg[ind_tcc25:], 2)):
+
+            # smoothen the lines
+            cg_sm = gaussian_filter1d(y_cg_sp, sigma=10)
+            wg_sm = gaussian_filter1d(y_wg_sp, sigma=10)
+            # the x and y values, normalized to the first
+            cg_linfit = np.log(cg_sm / cg_sm[0])
+            wg_linfit = np.log(wg_sm / wg_sm[0])
+            # run growths
+            c_fitp = np.polyfit(x_sp - x_sp[0], cg_linfit, deg=1, full=False, cov=True)
+            c_slope, c_slopee = c_fitp[0][0], c_fitp[1][0, 0]
+            w_fitp = np.polyfit(x_sp - x_sp[0], wg_linfit, deg=1, full=False, cov=True)
+            w_slope, w_slopee = w_fitp[0][0], w_fitp[1][0, 0]
+
+            tgrow_cg_run_sp = 1 / c_slope  # slope of the fit
+            tgrow_wg_run_sp = 1 / w_slope  # normalize the x-axis as well
+            tgrow_cg_run.append(tgrow_cg_run_sp)
+            tgrow_wg_run.append(tgrow_wg_run_sp)
+            err_cg.append(c_slopee / c_slope**2)  # append the errors as well
+            err_wg.append(w_slopee / w_slope**2)
+
+        cg_run_list.append(tgrow_cg_run)  # entry of 2-tuples for first and latter half of the MEH
+        cg_err_list.append(err_cg)
         wg_run_list.append(tgrow_wg_run)
+        wg_err_list.append(err_wg)
 
         """Calculated growths"""
-        # growth time for cold
-        # tgrow_cg_calc = alpha * rp['chi'] *\
-        # (rp['mach'] ** (-1/2)) *\
-        # (row['yval'] ** (1/2)) *\
-        # ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
-        # 0.0001217175017901#row['t_cool_min']
-
-        tgrow_cg_calc = calc_tgrow(rp, 800)
-
-        # for warm
-        # tgrow_wg_calc = alpha * (rp['chi'] / 10) *\
-        # (rp['mach'] ** (-1/2)) *\
-        # (row['yval'] ** (1/2)) *\
-        # ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
-        # 0.0001217175017901#row['t_cool_min']
-
-        tgrow_wg_calc = calc_tgrow(rp, 8000)
-
+        tgrow_cg_calc = calc_tgrow(rp, row, 800)
+        tgrow_wg_calc = calc_tgrow(rp, row, 8000)
         cg_calc_list.append(tgrow_cg_calc)
         wg_calc_list.append(tgrow_wg_calc)
 
-    return df, np.array(cg_run_list), np.array(wg_run_list), np.array(cg_calc_list), np.array(wg_calc_list)
+        trial_list.append(trial)
+
+    return df, trial_list,\
+        np.array(cg_run_list), np.array(wg_run_list),\
+        np.array(cg_err_list), np.array(wg_err_list),\
+        np.array(cg_calc_list), np.array(wg_calc_list)

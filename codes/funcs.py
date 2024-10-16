@@ -338,3 +338,9 @@ def press_binary_search(datapath, arr, condition):
         final_athdf_fname = arr[final_ind]
     stop_time = get_datamd(fname=f'{datapath}/cloud/{final_athdf_fname}', verbose=False, key='Time')
     return stop_time
+
+
+# linear fit with slope, intercept, and errors
+def lin_fit_err(x, y):
+    fit_params = np.polyfit(x, y, deg=1, full=False, cov=True)
+    return fit_params[0][0], fit_params[0][1], fit_params[1][0, 0], fit_params[1][1, 1]
