@@ -617,7 +617,7 @@ def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8
         tgrow = 0.5 * (rp['T_hot'] / T) # chi
         tgrow *= (row_props['t_cool_min'] * rp['t_cc']) ** (1/2)  # should be t_cool_min
         tgrow *= (rp['box_size'] / rp['cloud_radius']) ** (1/6)
-        return tgrow  # calculated
+        return tgrow / rp['t_cc'] # calculated
 
     for _, row in tqdm(df.iterrows()):
         trial = row['trial']
@@ -627,7 +627,7 @@ def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8
         
         """Fitted values"""
         # grab the mass evolution, from timescales.py
-        if row['stop_time'] < 0.3:  # skip rows that are stopped too soon
+        if row['stop_time'] < 0.7:  # skip rows that are stopped too soon
             continue
         x_stop, y_cg, y_wg, x_nostop = get_stopped_mass_evol(trial=trial, stop_time=row['stop_time'])
         # this the the entire MEH, so we ignore the first 0.25 t_cc, and take the first & second half of the MEH

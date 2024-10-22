@@ -966,7 +966,7 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     ax1.set_title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: ${rp['grid_dim']}^3$', fontsize=tfs)
 
     plt.subplots_adjust(hspace=0)
-    plt.savefig(figpath, format="pdf", bbox_inches="tight")
+    # plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
 """
