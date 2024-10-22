@@ -254,6 +254,8 @@ Figure 5
 8e2 runs parameter space: R_cl / l_shatter & Mach number
 Shown in 1 panel
 WITH analytical fits
+
+The pickle file is saved from plot_params_all_file_s() in parameter_func_8e2_sim.ipynb
 """
 
 def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf',
@@ -469,7 +471,7 @@ def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf'
     cbar1 = plt.colorbar(scs[0], cax=cbar_ax1, orientation='horizontal', extend='both')
     # cbar1.set_ticklabels([])
     cbar_ax1.xaxis.set_ticks_position('top'); cbar_ax1.tick_params(axis='x', which='major', pad=1)  # make x axis ticks on top
-    cbar1.ax.set_xlabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$ (cold)', labelpad=-35, fontsize=lfs)
+    cbar1.ax.set_xlabel(r'$\log_{10} \frac{M_{\rm cold}}{M_{\rm cold, 0}}$', labelpad=-35, fontsize=lfs)
     # cbar1.ax.set_ylabel('c', labelpad=15, rotation=0, fontsize=tfs)
     
     # warm
@@ -478,7 +480,7 @@ def params_8e2(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_8e2.pdf'
     cbar2 = plt.colorbar(scs[1], cax=cbar_ax2, orientation='horizontal', extend='max')
     # cbar2.ax.set_ylabel(r'$\log_{10} \frac{M_{\rm phase}}{M_{\rm cold, 0}}$ / slope', rotation=90, labelpad=3)
     cbar_ax2.xaxis.set_ticks_position('top'); cbar_ax2.tick_params(axis='x', which='major', pad=1)  # make x axis ticks on top
-    cbar2.ax.set_xlabel(r'slope (warm)', labelpad=-30, fontsize=lfs)
+    cbar2.ax.set_xlabel(r'$\frac{t_{\rm grow, warm}} {t_{\rm cc}}$', labelpad=-35, fontsize=lfs)
     # cbar2.ax.set_ylabel('w', labelpad=5, rotation=0, fontsize=tfs)
 
     # ax.grid()
@@ -713,7 +715,7 @@ def temp_rcl_plot(data, tccs,
 """
 Figure 4
 ----------------------------------------
-Cold gas mass evolution plot for the Tfloor = 8e2 runs
+Cold & warm gas mass evolution plot for the Tfloor = 8e2 runs
 With a particular Mach number
 """
 
@@ -908,18 +910,23 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
             if (plot_growth == -1) and (row["yval"] < 1e8):
                 continue
             # load t_cool_min
-            l_shatter_min, t_cool_mix, t_cool_min, [t_cool_func, T_tcoolmin, T_mix] = load_lshat(rp=rp, verbose=verbose)
-    
-            # growth time
-            t_grow = alpha * rp['chi'] *\
-            (rp['mach'] ** (-1/2)) *\
-            (row['yval'] ** (1/2)) *\
-            ((rp['box_size'] / rp['cloud_radius']) ** (1/6)) *\
-            t_cool_min
+            def calc_tgrow(rcl_lshat, mach,
+                        alpha=0.5, T=800, T_hot=4e6,
+                        t_cool_min = 0.0001217175017901, l_shat = 2.4989679118099205e-6, box_rad=50):
+                # calculate t_cc
+                from codes.funcs import calc_cs
+                vturb = mach * calc_cs(T_hot)
+                chi = T_hot / T
+                t_cc = (chi ** (1/2) * rcl_lshat * l_shat / vturb)
+                # calculate tgrow
+                tgrow = alpha * chi
+                tgrow *= (t_cool_min * t_cc) ** (1/2)
+                tgrow *= (box_rad) ** (1/6)
+                return tgrow / t_cc # calculated
     
             # use actual time, plot eddie time
-            print(alpha, rp['chi'], rp['mach'], row['yval'], rp['box_size'] / rp['cloud_radius'])
-            cold_frac = np.exp(x_stop * rp['t_cc'] / t_grow)
+            tgrow_pred = calc_tgrow(float(row["yval"]), mach=mach, T=800)  # cold gas growth rate
+            cold_frac = np.exp(x_stop / tgrow_pred)
             ax1.plot(x_stop, cold_frac, lw=1, ls=':', alpha=0.5, color=color)
 
     # add a horizontal dashed line at y=1
@@ -966,7 +973,7 @@ def mass_evol_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/mass_evol_b
     ax1.set_title(fr'${{\mathcal{{M}} = {mach}}}$, resolution: ${rp['grid_dim']}^3$', fontsize=tfs)
 
     plt.subplots_adjust(hspace=0)
-    # plt.savefig(figpath, format="pdf", bbox_inches="tight")
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
 """
@@ -1190,12 +1197,183 @@ def tracer_temp_evol_plot(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/trac
     plt.savefig(figpath, format="pdf", bbox_inches="tight")
     plt.show()
 
+
 """
 Figure 8
+----------------------------------------
+Cold & warm gas t_grow plot
+"""
+def tgrow_exp_both(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/tgrow_exp_both.pdf',
+                    cm = 'viridis', pred = True,
+                    lfs = 12, tfs = 10):
+    """
+    Plots the actual t_grow for both cold and warm gas in two panels
+
+
+    Corresponds to Figure 8 in the paper
+    -----
+    mach: only plot the points for a certain mach number
+    plot_growth: plot the expected growth rates from two-phase simulations (-1 = highest, 0 = no plot)
+    """
+    from codes.plotting.growth import growth_rate_comp
+    df, trial_list, cg_run_list, wg_run_list, cg_err_list, wg_err_list, cg_calc_list, wg_calc_list =\
+    growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e2_new.csv')
+    # mach
+    mach_list = np.array([df.loc[df['trial'] == trial, 'x_mach'].to_numpy() for trial in trial_list]).flatten()
+    color = cm(plt.Normalize(0, 1)(mach_list))
+    # x-axis, normalized cloud size
+    rcl_lshat_list = np.array([df.loc[df['trial'] == trial, 'y'].to_numpy() for trial in trial_list]).flatten()
+    
+    # make subplots
+    fig = plt.figure(figsize=(4, 5), dpi=200)
+    gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])  # ratio
+    ax1 = fig.add_subplot(gs[0])  # cold
+    ax2 = fig.add_subplot(gs[1], sharex=ax1)  # warm
+    
+    for ax, run_list in zip([ax1, ax2], [cg_run_list, wg_run_list]):
+        # early and late points
+        ax.scatter(rcl_lshat_list, run_list[:, 0],
+                    marker='^', s=20, linewidths=1, fc='none', ec=color, alpha=0.5, label='early')
+        ax.scatter(rcl_lshat_list, run_list[:, 1],
+                    marker='o', s=30, linewidths=1, fc=color, ec='k', alpha=0.8, label='late')
+        
+        # axis properties
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+
+    # predicted growths
+    if pred:
+        def calc_tgrow(rcl_lshat, mach,
+                        alpha=0.5, T=800, T_hot=4e6,
+                        t_cool_min = 0.0001217175017901, l_shat = 2.4989679118099205e-6, box_rad=50):
+            # calculate t_cc
+            from codes.funcs import calc_cs
+            vturb = mach * calc_cs(T_hot)
+            chi = T_hot / T
+            t_cc = (chi ** (1/2) * rcl_lshat * l_shat / vturb)
+            # calculate tgrow
+            tgrow = alpha * chi
+            tgrow *= (t_cool_min * t_cc) ** (1/2)
+            tgrow *= (box_rad) ** (1/6)
+            return tgrow / t_cc # calculated
+        
+        l_lin = np.logspace(1, 9)
+        mach_lin = [0.4, 0.6, 0.8]
+        predline_colors = cm(plt.Normalize(0, 1)(mach_lin))
+        # plot the predicted lines
+        for i, mach in enumerate(mach_lin):
+            tgrow_pred_cg = calc_tgrow(l_lin, mach, T=800)
+            tgrow_pred_wg = calc_tgrow(l_lin, mach, T=8000)
+            ax1.plot(l_lin, tgrow_pred_cg, lw=1, ls=':', color=predline_colors[i], alpha=0.8, label='' if i else 'analytic')
+            ax2.plot(l_lin, tgrow_pred_wg, lw=1, ls=':', color=predline_colors[i], alpha=0.8)
+
+    # cold
+    ax1.set_ylim(3e-1, 1e2)
+    ax1.set_ylabel(r'$\frac{t_{\rm grow, exp}}{t_{\rm cc}}$ (cold)', fontsize=lfs)
+    ax1.legend(loc='upper right', fontsize=tfs)
+    # warm
+    ax2.set_ylim(1e-1, 2e1)
+    ax2.set_ylabel(r'$\frac{t_{\rm grow, exp}}{t_{\rm cc}}$ (warm)', fontsize=lfs)
+
+    ax2.set_xlabel(r'$\frac{R_{\rm cl}}{l_{\rm shatter}}$', fontsize=lfs)
+
+    # add colorbar
+    sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(0, 1))
+    sm.set_array([])
+    cbar_dims = [0.915, 0.12, 0.02, 0.75]  # for being twice as tall as usual
+    cbar_ax = fig.add_axes(cbar_dims)  # [left, bottom, width, height]
+    cbar = plt.colorbar(sm, cax=cbar_ax, ax=ax1)
+    cbar_ticks = np.arange(0, 1.2, 0.2)
+    cbar.set_ticks(cbar_ticks)
+    cbar.set_ticklabels([f'{cbar_tick:.1f}' for cbar_tick in cbar_ticks])
+    cbar.ax.set_ylabel(r'$\mathcal{M}$', rotation=0, labelpad=5, fontsize=lfs)
+
+    plt.subplots_adjust(hspace=0)
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
+    plt.show()
+
+
+"""
+Figure 9
+
+Four quadrants plot for the tgrow in warm / cold gas
+"""
+
+def tgrow_four_quadrants(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/tgrow_four_panels.pdf',
+                        yraise = 1.2, plot_err = False,
+                        cmap = 'viridis', lfs = 12, tfs = 10):
+    from codes.plotting.growth import growth_rate_comp
+    df, trial_list, cg_run_list, wg_run_list, cg_err_list, wg_err_list, cg_calc_list, wg_calc_list =\
+    growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8e2_new.csv')
+
+    # colormap
+    r_cl_cm = cmap
+    rcl_lshat_list = np.array([df.loc[df['trial'] == trial, 'y'].to_numpy() for trial in trial_list]).flatten()
+    color = r_cl_cm(plt.Normalize(1, 9)(np.log10(rcl_lshat_list)))
+
+    fig, ax = plt.subplots(dpi=200, figsize=(4,4))
+    ax.scatter(1/cg_run_list[:, 0], 1/wg_run_list[:, 0], marker='^', s=20, linewidths=1, fc='none', ec=color, alpha=0.5, label='early')
+    ax.scatter(1/cg_run_list[:, 1], 1/wg_run_list[:, 1], marker='o', s=40, linewidths=1, fc=color, ec='k', alpha=1, label='late')
+
+    if plot_err:
+        # early error
+        ax.errorbar(1/cg_run_list[:, 0], 1/wg_run_list[:, 0],
+                    xerr=.1/cg_err_list[:, 0], yerr=.1/wg_err_list[:, 0],
+                    markersize=10, ecolor='k', elinewidth=0.5, capsize=0, linewidth=0, color='k', alpha=0.5, zorder=-1)
+        # late error
+        ax.errorbar(1/cg_run_list[:, 1], 1/wg_run_list[:, 1],  # in units of 0.1 * tcc/MEH
+                    xerr=.1/cg_err_list[:, 1], yerr=.1/wg_err_list[:, 1],
+                    markersize=10, ecolor='k', elinewidth=0.5, capsize=0, linewidth=0, color='k', alpha=1, zorder=-1)
+
+    # ax.axhline(0, lw=1, ls='--', color='k', alpha=0.5)  # at origin
+    # ax.axvline(0, lw=1, ls='--', color='k', alpha=0.5)
+    ax.set_xlabel(r'$\frac {t_{\rm cc}} {t_{\rm grow, exp}}$ (cold)', fontsize=lfs)
+    ax.set_ylabel(r'$\frac {t_{\rm cc}} {t_{\rm grow, exp}}$ (warm)', fontsize=lfs)
+
+    # limits
+    xlim = [-2.6, 2.6]
+    ylim = [-3e-1, 6]
+    # ax.set_xscale('symlog')
+    # ax.set_yscale('symlog')
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    # shade fill
+    x = np.sort(np.concatenate([-np.logspace(-10, np.log10(-xlim[0]), 400), np.logspace(-10, np.log10(xlim[1]), 400)]))
+    ax.fill_between(x, yraise, ylim[0], where=(x < 0), ls='-.', lw=1, ec='None', color='red', alpha=0.2, zorder=-1)
+    ax.fill_between(x, yraise, ylim[1], where=(x < 0), ls='-.', lw=1, ec='None', color='orange', alpha=0.2, zorder=-1)
+    ax.fill_between(x, yraise, ylim[1], where=(x > 0), ls='-.', lw=1, ec='None', color='green', alpha=0.2, zorder=-1)
+    ax.fill_between(x, yraise, ylim[0], where=(x > 0), ls='-.', lw=1, ec='None', color='teal', alpha=0.2, zorder=-1)
+
+    # text
+    ax.text(xlim[0]/2, (yraise+ylim[0])/2, s=r'\texttt{cDwD}', ha='center', va='center', fontsize=tfs)  # the new labels consistent with text
+    ax.text(xlim[0]/2, (yraise+ylim[1])/2, s=r'\texttt{cDwS}', ha='center', va='center', fontsize=tfs)
+    ax.text(xlim[1]/2, (yraise+ylim[1])/2, s=r'\texttt{cSwS}', ha='center', va='center', fontsize=tfs)
+    ax.text(xlim[1]/2, (yraise+ylim[0])/2, s=r'\texttt{cSwD}', ha='center', va='center', fontsize=tfs)
+
+    # colorbar
+    sm = plt.cm.ScalarMappable(cmap=r_cl_cm, norm=plt.Normalize(0, 8))
+    sm.set_array([])
+    cbar_ax = fig.add_axes([0.915, 0.12, 0.02, 0.75])  # [left, bottom, width, height]
+
+    cbar = plt.colorbar(sm, cax=cbar_ax, ax=ax)
+    cbar.set_ticks([0, 2, 4, 6, 8])
+    cbar.set_ticklabels([0, 2, 4, 6, 8])
+    cbar.ax.set_ylabel(r'$\log_{10} \frac{R_{\rm cl}}{l_{\rm shatter}}$', rotation=90, labelpad=5, fontsize=lfs)
+
+    ax.legend()
+    plt.savefig(figpath, format="pdf", bbox_inches="tight")
+    plt.show()
+
+
+"""
+Figure 10
 ----------------------------------------
 8e2 runs parameter space: t_cc / tchar & Mach number
 Shown in 3 panels
 With analytical linear fits
+
+Pickle file generated from plot_params_coolmix_cc()
 """
 
 def params_tcc_tchar_fit_hori(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/params_tcc_tchar_fit_hori.pdf',
@@ -1337,6 +1515,7 @@ def params_tcc_tchar_fit(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/param
                                     c=log_frac_mean, vmin=0, vmax=3, ec='k', cmap=cm)#, label='warm 1')
             elif j == 2:
                 """Warm 2"""
+                # print(log_frac_mean)  # for warm gas, it is the slope of log
                 scs[j] = ax.scatter(x, y, marker=marker, s=pt_size,
                                     c=log_frac_mean, vmin=0, vmax=3, ec='k', cmap=cm)#, label='warm 2')
                 y_ticks = np.arange(-3, 2, 0.75)
@@ -1395,7 +1574,7 @@ def params_tcc_tchar_fit(figpath = '/ptmp/mpa/wuze/multiphase_turb/figures/param
     # cbar_ax2 = fig.add_axes([0.940, 0.15, 0.02, 0.3])  # [left, bottom, width, height]
     cbar_ax2 = ax3.inset_axes([1.05, 0.5, 0.02, 1])
     cbar2 = plt.colorbar(scs[1], cax=cbar_ax2, extend='max')
-    cbar2.ax.set_ylabel(r'$m(t)$ slope', fontsize=lfs, rotation=90, labelpad=5)
+    cbar2.ax.set_ylabel(r'$\frac{t_{\rm grow, warm}} {t_{\rm cc}}$', fontsize=lfs, rotation=90, labelpad=5)
     cbar2.ax.set_xlabel('warm', labelpad=10)
     
     plt.subplots_adjust(hspace=0)

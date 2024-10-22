@@ -659,8 +659,13 @@ def growth_rate_comp(csvpath='/freya/ptmp/mpa/wuze/multiphase_turb/saves/cloud_8
             tgrow_wg_run_sp = 1 / w_slope  # normalize the x-axis as well
             tgrow_cg_run.append(tgrow_cg_run_sp)
             tgrow_wg_run.append(tgrow_wg_run_sp)
-            err_cg.append(c_slopee / c_slope**2)  # append the errors as well
-            err_wg.append(w_slopee / w_slope**2)
+
+            # # error as error of fit (small as there are many points)
+            # err_cg.append(c_slopee / c_slope**2)
+            # err_wg.append(w_slopee / w_slope**2)
+            # error as MEH / tcc
+            err_cg.append(x_sp[-1] - x_sp[0])
+            err_wg.append(x_sp[-1] - x_sp[0])
 
         cg_run_list.append(tgrow_cg_run)  # entry of 2-tuples for first and latter half of the MEH
         cg_err_list.append(err_cg)

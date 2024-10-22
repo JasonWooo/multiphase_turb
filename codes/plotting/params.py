@@ -276,6 +276,8 @@ def plot_params_all_file_s(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data
         if real_mach: x = actual_mach[i]
         # calculate turbulent velocity for later t_cc calcs
         vturb = x * calc_cs(rp['T_hot'])
+        
+        # grab log norm(MEH)
         log_cold_frac, log_warm_frac, hst_time = add_color_time(rp=rp, trial=trial, verbose=verbose, cg_st_epoch=cg_st_epoch, return_cropped=False)  # do not crop, but use the 
         # normalize for all fractions
         log_cold_frac = np.nan_to_num(log_cold_frac, posinf=1, neginf=-1)
@@ -289,14 +291,14 @@ def plot_params_all_file_s(csvpath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data
         scs = [None, None]
         for j, (log_frac, marker, cm) in \
         enumerate(zip([log_cold_frac, log_warm_frac], [lmarker, rmarker], [cm_cold, cm_warm])):
-            # find the stable points
+            # find the stable points – EVERYTHING AFTER 1t_cc
             t_cc_lim = 1  # when is the point stable
             stable_ind = int(np.ceil(t_cc_lim * rp['t_cc'] / (rp['dt_hdf5'] / 100)))  # normalize to hst time
             log_frac_stable = log_frac[stable_ind:stop_ind]  # select all points onward, up to stable point
             
             # take the mean and the std
             if j:  # warm, make linear
-                # log_frac_mean = np.nansum(np.diff(log_frac_stable) ** 3) ** (1/3)  # make it the slope # log_frac_mean = np.power(10., np.mean(log_frac_stable))
+                """originally this was the log(MEH), but we changed it to slope"""# log_frac_mean = np.power(10., np.mean(log_frac_stable))
                 log_frac_mean, _ = np.polyfit(hst_time[stable_ind:stop_ind], log_frac_stable, 1)
                 # scatter the points
                 scs[j] = ax.scatter(x, y, marker=marker, s=pt_size,

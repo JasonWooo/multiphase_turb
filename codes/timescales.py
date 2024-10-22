@@ -702,7 +702,7 @@ def add_color(rp = None, trial = '240613_0.1_10', verbose = True,
 
 # returns color and cutoff time for a run
 def add_color_time(rp = None, trial = '240613_0.1_10', verbose = True,
-                   cg_st_epoch = 0, return_cropped = True):
+                   cg_st_epoch = 0, return_cropped = False):
     # grab the hst file data
     datapath = f'/freya/ptmp/mpa/wuze/multiphase_turb/data/{trial}'
     # try
@@ -736,32 +736,15 @@ def add_color_time(rp = None, trial = '240613_0.1_10', verbose = True,
     stop_time_cc = stop_time / rp['t_cc']
 
     
-    # plot hst version
     cg_st_epoch = 0
-    # ax1.plot(dataf['time'] / rp['dt_hdf5'], cold_frac_all, ls='--', color='blue', alpha=0.3)
-    # ax1.plot(dataf['time'] / rp['dt_hdf5'], warm_frac_all, ls='--', color='orange', alpha=0.3)
-    # # plot the cropped version in solid
-    # ax1.plot(dataf['time'][:stop_ind] / rp['dt_hdf5'], cold_frac_cropped, ls='-', color='blue', label='Cold gas mass', alpha=1)
-    # ax1.plot(dataf['time'][:stop_ind] / rp['dt_hdf5'], warm_frac_cropped, ls='-', color='orange', label='Warm gas mass', alpha=1)
-
-    # hot gas mass from total mass
-    tot_mass = np.sum(get_datamd(fname=f'{datapath}/cloud/Turb.out2.00001.athdf', key='rho', verbose=False)) * ((rp['box_size'] / rp['grid_dim']) ** 3)
     cg_mass = dataf['cold_gas']
     wg_mass = dataf['warm_gas']
-    hg_mass = tot_mass - cg_mass - wg_mass
-
     # crop the mass
     time_cropped = dataf['time'][:stop_ind]
     wg_mass_cropped = wg_mass[:stop_ind]
     cg_mass_cropped = cg_mass[:stop_ind]
-    hg_mass_cropped = tot_mass - cg_mass_cropped - wg_mass_cropped
 
-    # stop when the hot gas mass reach 10%
-    if np.any((hg_mass_cropped / tot_mass) < 0.2):  # if the hot gas disappeears
-        print('Cropped for hot mass')
-        hot_fill_ind = np.argmin(np.abs(hg_mass_cropped / tot_mass - 0.05))
-    else:
-        hot_fill_ind = -1
+    hot_fill_ind = -1
     stop_time_cc = time_cropped[hot_fill_ind] / rp['t_cc']
 
     return np.log10(cg_mass_cropped[:hot_fill_ind] / cg_mass_cropped[cg_st_epoch]), np.log10(wg_mass_cropped[:hot_fill_ind] / cg_mass_cropped[cg_st_epoch]), time_cropped[:stop_ind][:hot_fill_ind] / rp['t_cc']
